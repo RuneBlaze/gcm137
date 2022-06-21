@@ -1,0 +1,27 @@
+[package]
+name = "gcm137"
+version = "0.0.1"
+edition = "2021"
+description = "experimental re-make of graph clustering merger"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = { version = "0.8.5", features = ["alloc"] }
+seq_io = "0.4.0-alpha.0"
+itertools = "0.10.3"
+tokio = { version = "1", features = ["full"] }
+ahash = "0.7.6"
+roaring = "0.9.0"
+clap = { version = "3.1.18", features = ["derive"] }
+sprs = "0.11.0"
+petgraph = "0.6.2"
+ordered-float = "3.0.0"
+fixedbitset = "0.4.1"
+rayon = "1.5.3"
+
+# no doing lto now...
+# [profile.release]
+# lto = "thin"
