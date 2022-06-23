@@ -1,4 +1,5 @@
 use ahash::AHashMap;
+use ordered_float::NotNan;
 
 use crate::{aln::AlnProcessor, external::request_alignment};
 use futures::executor::block_on;
@@ -136,7 +137,11 @@ pub fn build_subgraph(state: &AlnState, glue: &PathBuf) -> anyhow::Result<Sparse
     Ok(res)
 }
 
-pub fn build_graph(state: &AlnState, glues: &[PathBuf]) -> anyhow::Result<Graph> {
+pub fn build_graph(
+    state: &AlnState,
+    glues: &[PathBuf],
+    weights: &Option<Vec<NotNan<f64>>>,
+) -> anyhow::Result<Graph> {
     let subgraphs_: anyhow::Result<Vec<SparseGraph>> = glues
         .par_iter()
         .map(|glue| build_subgraph(state, glue))
@@ -155,7 +160,8 @@ pub fn build_graph(state: &AlnState, glues: &[PathBuf]) -> anyhow::Result<Graph>
             id += 1;
         }
     }
-    for subgraph in &subgraphs {
+    for (i, subgraph) in subgraphs.iter().enumerate() {
+        let subgraph_weight = weights.as_ref().map(|w| w[i as usize].into_inner()).unwrap_or(1.0);
         for (u, map) in subgraph {
             for (v, w) in map {
                 let u = pos2id[u];
@@ -164,7 +170,7 @@ pub fn build_graph(state: &AlnState, glues: &[PathBuf]) -> anyhow::Result<Graph>
                 labels.insert(v);
                 let entry = merged.entry(u).or_insert_with(AHashMap::default);
                 let entry2 = entry.entry(v).or_default();
-                *entry2 += w;
+                *entry2 += w * subgraph_weight;
             }
         }
     }
