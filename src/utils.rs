@@ -7,6 +7,8 @@ use itertools::Itertools;
 use rand::{prelude::ThreadRng, Rng};
 use seq_io::{fasta::RefRecord, BaseRecord};
 
+use crate::aln::AlnProcessor;
+
 pub struct SequenceSampler {
     pub rng: ThreadRng,
     pub names: Vec<Vec<u8>>,
@@ -61,6 +63,33 @@ impl SequenceSampler {
             }
         }
         self.i += 1;
+    }
+
+    pub fn dump(&self, outfile: &PathBuf) -> anyhow::Result<()> {
+        let mut writer = BufWriter::new(std::fs::File::create(outfile)?);
+        for (name, seq) in self.names.iter().zip(self.records.iter()) {
+            writer.write_all(b">")?;
+            writer.write_all(name)?;
+            writer.write_all(b"\n")?;
+            seq.chunks(60).for_each(|chunk| {
+                writer.write_all(chunk).unwrap();
+                writer.write_all(b"\n").unwrap();
+            });
+        }
+        Ok(())
+    }
+}
+
+impl AlnProcessor for SequenceSampler {
+    type Output = ();
+
+    fn on_record(&mut self, record: &RefRecord) -> anyhow::Result<()> {
+        self.see(record);
+        Ok(())
+    }
+
+    fn take(&mut self) -> Self::Output {
+        ()
     }
 }
 

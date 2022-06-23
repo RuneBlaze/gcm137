@@ -1,11 +1,13 @@
 mod combined;
 mod external;
-mod gcm;
+// mod gcm;
+mod aln;
+mod decompose;
 mod merge;
 mod naive_upgma;
 mod state;
 mod utils;
-mod aln;
+
 use clap::{Parser, Subcommand};
 use itertools::Itertools;
 use naive_upgma::triplets_to_sims;
@@ -15,12 +17,6 @@ use std::path::PathBuf;
 #[derive(Parser, Debug, Hash, PartialEq)]
 #[clap(author, version, about)]
 struct Args {
-    // #[clap(short, long)]
-    // input: PathBuf,
-    // #[clap(short, long)]
-    // tree: PathBuf,
-    // #[clap(short, long)]
-    // output: Option<PathBuf>,
     #[clap(subcommand)]
     cmd: SubCommand,
 }

@@ -22,4 +22,13 @@ impl AlnState {
     pub fn retrieve(&self, name: &str) -> usize {
         *self.names2id.get(name).unwrap()
     }
+
+    pub fn new() -> Self {
+        Self {
+            names: vec![],
+            names2id: AHashMap::default(),
+            s: vec![],
+            column_counts: vec![],
+        }
+    }
 }

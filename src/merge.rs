@@ -1,6 +1,6 @@
 use ahash::AHashMap;
 
-use crate::external::request_alignment;
+use crate::{aln::AlnProcessor, external::request_alignment};
 use futures::executor::block_on;
 use itertools::Itertools;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
@@ -20,56 +20,82 @@ use crate::{
     state::AlnState,
 };
 
-pub fn state_from_constraints(
-    constraint_alns: &[PathBuf],
-) -> anyhow::Result<AlnState> {
-    let mut res = AlnState {
-        names: vec![],
-        names2id: ahash::AHashMap::default(),
-        s: vec![],
-        column_counts: vec![],
-    };
-    let mut sequence_id = 0usize;
-    for (cid, aln) in constraint_alns.iter().enumerate() {
+pub fn state_from_constraints(constraint_alns: &[PathBuf]) -> anyhow::Result<AlnState> {
+    let mut p = StateFromConstraints::default();
+    for aln in constraint_alns {
         // cid : constraint id
-        let mut reader = Reader::new(File::open(aln)?);
-        let mut columns = 0usize;
+        let mut reader = Reader::from_path(aln)?;
         while let Some(result) = reader.next() {
             let rec = result?;
-            let name = String::from_utf8(rec.head().iter().copied().collect_vec())?;
-            let mut column = 0usize;
-            res.names.push(name.clone());
-            res.names2id.insert(name, sequence_id);
-            // res.id2constraint
-            let mut s_slice: Vec<(u32, u32)> = vec![];
-            for l in rec.seq_lines() {
-                for &c in l {
-                    if c != b'-' {
-                        s_slice.push((cid as u32, column as u32));
-                    }
-                    column += 1;
-                }
-            }
-            if columns <= 0 {
-                columns = column;
-            } else {
-                assert_eq!(column, columns);
-            }
-            res.s.push(s_slice);
-            sequence_id += 1;
+            p.on_record(&rec)?;
         }
-        res.column_counts.push(columns);
+        p.next_aln();
     }
-    return Ok(res);
+    return Ok(p.take());
+}
+
+pub struct StateFromConstraints {
+    state: AlnState,
+    sequence_id: usize,
+    columns: usize,
+    cid: usize,
+}
+
+impl StateFromConstraints {
+    pub fn next_aln(&mut self) {
+        self.state.column_counts.push(self.columns);
+        self.columns = 0;
+        self.cid += 1;
+    }
+}
+
+impl Default for StateFromConstraints {
+    fn default() -> Self {
+        Self {
+            state: AlnState::new(),
+            sequence_id: 0,
+            columns: 0,
+            cid: 0,
+        }
+    }
+}
+
+impl AlnProcessor for StateFromConstraints {
+    type Output = AlnState;
+
+    fn on_record(&mut self, rec: &seq_io::fasta::RefRecord) -> anyhow::Result<()> {
+        let name = String::from_utf8(rec.head().iter().copied().collect_vec())?;
+        let mut column = 0usize;
+        self.state.names.push(name.clone());
+        self.state.names2id.insert(name, self.sequence_id);
+        // res.id2constraint
+        let mut s_slice: Vec<(u32, u32)> = vec![];
+        for l in rec.seq_lines() {
+            for &c in l {
+                if c != b'-' {
+                    s_slice.push((self.cid as u32, column as u32));
+                }
+                column += 1;
+            }
+        }
+        if self.columns <= 0 {
+            self.columns = column;
+        } else {
+            assert_eq!(column, self.columns);
+        }
+        self.state.s.push(s_slice);
+        self.sequence_id += 1;
+        Ok(())
+    }
+
+    fn take(&mut self) -> Self::Output {
+        std::mem::replace(&mut self.state, AlnState::new())
+    }
 }
 
 type SparseGraph = AHashMap<(u32, u32), AHashMap<(u32, u32), f64>>;
 
-pub fn build_subgraph(
-    state: &AlnState,
-    glue: &PathBuf,
-) -> anyhow::Result<SparseGraph>
-{
+pub fn build_subgraph(state: &AlnState, glue: &PathBuf) -> anyhow::Result<SparseGraph> {
     let s = &state.s;
     let mut res = AHashMap::default();
     let mut colors: Vec<AHashMap<(u32, u32), usize>> = vec![];
@@ -110,10 +136,7 @@ pub fn build_subgraph(
     Ok(res)
 }
 
-pub fn build_graph(
-    state: &AlnState,
-    glues: &[PathBuf],
-) -> anyhow::Result<Graph> {
+pub fn build_graph(state: &AlnState, glues: &[PathBuf]) -> anyhow::Result<Graph> {
     let subgraphs_: anyhow::Result<Vec<SparseGraph>> = glues
         .par_iter()
         .map(|glue| build_subgraph(state, glue))
