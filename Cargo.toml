@@ -21,6 +21,9 @@ petgraph = "0.6.2"
 ordered-float = "3.0.0"
 fixedbitset = "0.4.1"
 rayon = "1.5.3"
+futures = "0.3"
+nix = "0.24.1"
+anyhow = "1.0"
 
 # no doing lto now...
 # [profile.release]

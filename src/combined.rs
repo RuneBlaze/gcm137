@@ -1,12 +1,8 @@
-
-
 use itertools::Itertools;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 
+use std::error::Error;
 use std::path::PathBuf;
-use std::{
-    error::Error,
-};
 
 use crate::{
     merge::{build_frames, build_graph, merge_alignments_from_frames, state_from_constraints},
@@ -39,4 +35,9 @@ pub fn oneshot_merge_alignments(
     // frame_lengths, frames.iter().map(|it| it.len()).collect_vec(), &state.column_counts);
     merge_alignments_from_frames(constraints, &frames, outpath)?;
     Ok(())
+}
+
+
+pub fn oneshot_stitch_alignments(constraints: &[PathBuf], outpath: &PathBuf) {
+    
 }

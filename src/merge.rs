@@ -1,5 +1,7 @@
 use ahash::AHashMap;
 
+use crate::external::request_alignment;
+use futures::executor::block_on;
 use itertools::Itertools;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use seq_io::{fasta::Reader, BaseRecord};
@@ -9,7 +11,9 @@ use std::{
     fs::File,
     io::{BufWriter, Write},
     path::PathBuf,
+    sync::Arc,
 };
+use tokio::{sync::Semaphore, task};
 
 use crate::{
     naive_upgma::{ClusteringResult, Graph},
@@ -18,11 +22,10 @@ use crate::{
 
 pub fn state_from_constraints(
     constraint_alns: &[PathBuf],
-) -> Result<AlnState, Box<dyn std::error::Error>> {
+) -> anyhow::Result<AlnState> {
     let mut res = AlnState {
         names: vec![],
         names2id: ahash::AHashMap::default(),
-        // id2constraint : ahash::AHashMap::default(),
         s: vec![],
         column_counts: vec![],
     };
@@ -60,15 +63,17 @@ pub fn state_from_constraints(
     return Ok(res);
 }
 
+type SparseGraph = AHashMap<(u32, u32), AHashMap<(u32, u32), f64>>;
+
 pub fn build_subgraph(
     state: &AlnState,
     glue: &PathBuf,
-) -> Result<AHashMap<(u32, u32), AHashMap<(u32, u32), f64>>, Box<dyn std::error::Error + Send + Sync>>
+) -> anyhow::Result<SparseGraph>
 {
     let s = &state.s;
     let mut res = AHashMap::default();
     let mut colors: Vec<AHashMap<(u32, u32), usize>> = vec![];
-    let mut reader = Reader::new(File::open(glue)?);
+    let mut reader = Reader::from_path(glue)?;
     while let Some(result) = reader.next() {
         let rec = result?;
         let name = String::from_utf8(rec.head().iter().copied().collect_vec())?;
@@ -108,8 +113,8 @@ pub fn build_subgraph(
 pub fn build_graph(
     state: &AlnState,
     glues: &[PathBuf],
-) -> Result<Graph, Box<dyn Error + Send + Sync>> {
-    let subgraphs_: Result<Vec<AHashMap<(u32, u32), AHashMap<(u32, u32), f64>>>, _> = glues
+) -> anyhow::Result<Graph> {
+    let subgraphs_: anyhow::Result<Vec<SparseGraph>> = glues
         .par_iter()
         .map(|glue| build_subgraph(state, glue))
         .collect();
@@ -210,7 +215,7 @@ pub fn merge_alignments_from_frames(
     let out = File::create(outfile).unwrap();
     let mut writer = BufWriter::new(out);
     for (constraint, frame) in constraints.iter().zip(frames) {
-        let mut reader = Reader::new(File::open(constraint)?);
+        let mut reader = Reader::from_path(constraint)?;
         while let Some(result) = reader.next() {
             let rec = result?;
             let mut buf: Vec<u8> = vec![];
@@ -242,4 +247,24 @@ pub fn merge_alignments_from_frames(
         }
     }
     Ok(())
+}
+
+pub async fn align_glues(glues: &[PathBuf], tokens: usize) -> Vec<PathBuf> {
+    let mut join_handles = vec![];
+    let semaphore = Arc::new(Semaphore::new(tokens));
+    let mut outputs = vec![];
+    for g in glues {
+        let cg = g.clone();
+        let permit = semaphore.clone().acquire_owned().await.unwrap();
+        let mut outpath = g.clone();
+        outpath.set_extension("aln");
+        let opc = outpath.clone();
+        join_handles.push(task::spawn_blocking(move || {
+            request_alignment(&cg, &outpath).expect("failed to align");
+            drop(permit);
+        }));
+        outputs.push(opc);
+    }
+    futures::future::join_all(join_handles).await;
+    outputs
 }

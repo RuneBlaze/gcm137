@@ -4,6 +4,8 @@ mod gcm;
 mod merge;
 mod naive_upgma;
 mod state;
+mod utils;
+mod aln;
 use clap::{Parser, Subcommand};
 use itertools::Itertools;
 use naive_upgma::triplets_to_sims;

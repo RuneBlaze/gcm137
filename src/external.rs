@@ -1,15 +1,15 @@
-use std::path::PathBuf;
-use tokio::{
-    fs::{rename, File},
-    io::BufWriter,
-    process::Command,
-};
+use std::fs::File;
+use std::os::unix::prelude::{FromRawFd, IntoRawFd};
+use std::process::Stdio;
+use std::{fs::rename, path::PathBuf, process::Command};
 
-/// runs mafft-linsi
-async fn request_alignment(
+pub fn request_alignment(
     in_path: &PathBuf,
     out_path: &PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let mut temp_out = out_path.clone();
+    temp_out.set_extension("temp");
+    let fd = File::create(&temp_out)?.into_raw_fd();
     let mut child = Command::new("mafft")
         .arg("--localpair")
         .arg("--maxiterate")
@@ -20,13 +20,9 @@ async fn request_alignment(
         .arg("--thread")
         .arg("2")
         .arg(in_path)
+        .stdout(unsafe { Stdio::from_raw_fd(fd) })
         .spawn()?;
-    let mut temp_out = out_path.clone();
-    temp_out.set_extension("temp");
-    let mut stdout = child.stdout.take().unwrap();
-    let f = File::create(&temp_out).await?;
-    let mut writer = BufWriter::new(f);
-    tokio::io::copy(&mut stdout, &mut writer).await?;
-    rename(&temp_out, &out_path).await?;
+    child.wait()?;
+    rename(&temp_out, &out_path)?;
     Ok(())
 }
