@@ -207,7 +207,6 @@ pub fn build_frames(state: &AlnState, res: &ClusteringResult) -> Vec<Vec<u32>> {
             if last_frontier[c as usize] < (e.1 as i64 - 1) {
                 // then singletons exist, we need to take care of them
                 let num_singletons = (e.1 as i64 - last_frontier[c as usize] - 1) as usize;
-                // println!("singletons: {}", num_singletons);
                 for j in 0..k {
                     if j == c as usize {
                         for _ in 0..num_singletons {
@@ -227,10 +226,27 @@ pub fn build_frames(state: &AlnState, res: &ClusteringResult) -> Vec<Vec<u32>> {
                 e.1
             );
             last_frontier[c as usize] = e.1 as i64;
-            // println!("tr: {:?}", tr);
 
             skip_frames[c as usize].push(0);
             c += 1;
+        }
+    }
+
+    for c in 0..k {
+        let expected_len = state.column_counts[c] - 1;
+        if (last_frontier[c as usize] as usize) < expected_len {
+            // then singletons exist, we need to take care of them
+            let num_singletons = (expected_len - last_frontier[c as usize] as usize) as usize;
+            for j in 0..k {
+                if j == c as usize {
+                    for _ in 0..num_singletons {
+                        skip_frames[c as usize].push(0);
+                    }
+                } else {
+                    let l = skip_frames[j as usize].len();
+                    skip_frames[j][l - 1] += num_singletons as u32;
+                }
+            }
         }
     }
     return skip_frames;
