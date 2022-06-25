@@ -76,12 +76,13 @@ pub fn sw_algorithm(graph: &Graph, state: &AlnState) -> ClusteringResult {
             }
             let mut max = 0.0;
             let mut max_pt = 0u8;
-            let values = [
-                s[[i - 1, j - 1]] + weight_from_graph(graph, i - 1, n + j - 1),
-                s[[i - 1, j]],
-                s[[i, j - 1]],
-            ];
+            let w = weight_from_graph(graph, i - 1, n + j - 1);
+            let values = [s[[i - 1, j - 1]] + w, s[[i - 1, j]], s[[i, j - 1]]];
             for (i, &v) in values.iter().enumerate() {
+                if i == 0 && w <= 0.0 {
+                    max_pt = 1;
+                    continue;
+                }
                 if v > max {
                     max = v;
                     max_pt = i as u8;
@@ -92,7 +93,6 @@ pub fn sw_algorithm(graph: &Graph, state: &AlnState) -> ClusteringResult {
         }
     }
     let score = s[[n, m]];
-    // println!("SW {}", score);
     let mut matches: Vec<Vec<(u32, u32)>> = Vec::new();
     let (mut i, mut j) = (n, m);
     while i > 0 && j > 0 {
@@ -101,6 +101,9 @@ pub fn sw_algorithm(graph: &Graph, state: &AlnState) -> ClusteringResult {
             i -= 1;
             j -= 1;
             matches.push(vec![(0, i as u32), (1, j as u32)]);
+        } else if pt == 7 {
+            i -= 1;
+            j -= 1;
         } else if pt == 1 {
             i -= 1;
         } else if pt == 2 {
@@ -134,7 +137,6 @@ fn two_case_mwt(
     if frontier >= &edges.len() {
         return 0.0;
     }
-    // println!("{:?} {:?}", taken, edges.len() -  frontier);
     let mut maximum: f64 = 0f64;
     let mut best_next = 0usize;
     for i in *frontier..(edges.len()) {

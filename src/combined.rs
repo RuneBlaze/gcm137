@@ -1,4 +1,7 @@
-use crate::{cluster::ClusteringResult, exact_solver::sw_algorithm};
+use crate::{
+    cluster::{ClusteringResult, GCMStep},
+    exact_solver::sw_algorithm,
+};
 use anyhow::Ok;
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -24,6 +27,7 @@ use crate::{
 pub fn oneshot_merge_alignments(
     constraints: &[PathBuf],
     glues: &[PathBuf],
+    tracer_mode: GCMStep,
     weights: &Option<Vec<NotNan<f64>>>,
     outpath: &PathBuf,
 ) -> anyhow::Result<()> {
@@ -31,13 +35,14 @@ pub fn oneshot_merge_alignments(
     debug!("Constructed state from constraints");
     let graph = build_graph(&mut state, glues, weights).unwrap();
     debug!("Built alignment graph.");
-    let res = if constraints.len() == 2 {
+    let res = if constraints.len() == 2 && tracer_mode != GCMStep::Upgma {
         debug!("Running SW algorithm, solving MWT-AM exactly.");
         sw_algorithm(&graph, &state)
     } else {
         debug!("Running UPGMA heuristic for solving MWT-AM.");
         naive_upgma(&graph, &state)
     };
+    // println!("{:?}", res.clusters);
     debug!("Clustered/Traced alignment graph.");
     let frames = build_frames(&state, &res);
     // println!("Built frames. {:?}", frames[0]);

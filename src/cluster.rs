@@ -1,4 +1,12 @@
 use ahash::AHashMap;
+use clap::ArgEnum;
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum, Debug, Hash)]
+pub enum GCMStep {
+    Auto,
+    Upgma,
+    Pairwise,
+}
 
 pub struct Graph {
     pub size: usize,

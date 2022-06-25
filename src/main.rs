@@ -12,6 +12,7 @@ mod state;
 mod utils;
 
 use clap::{Parser, Subcommand};
+use cluster::GCMStep;
 use itertools::Itertools;
 use naive_upgma::triplets_to_sims;
 use ordered_float::NotNan;
@@ -33,6 +34,8 @@ enum SubCommand {
         input: Vec<PathBuf>,
         #[clap(short, long, multiple_values = true)]
         glues: Vec<PathBuf>,
+        #[clap(short, long, arg_enum, default_value_t = GCMStep::Auto)]
+        tracer: GCMStep,
         #[clap(short, long, multiple_values = true)]
         weights: Vec<NotNan<f64>>,
         #[clap(short, long)]
@@ -87,6 +90,7 @@ async fn main() -> anyhow::Result<()> {
         SubCommand::Merge {
             input,
             glues,
+            tracer,
             weights,
             output,
         } => {
@@ -102,7 +106,7 @@ async fn main() -> anyhow::Result<()> {
                 glues.len(),
                 w
             );
-            combined::oneshot_merge_alignments(&input, &glues, &w, &output)
+            combined::oneshot_merge_alignments(&input, &glues, tracer, &w, &output)
                 .expect("Failed to merge alignments");
         }
     }
