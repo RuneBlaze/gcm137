@@ -1,19 +1,13 @@
 use std::collections::{BTreeSet, BinaryHeap, VecDeque};
 
-use crate::state::AlnState;
+use crate::cluster::{ClusteringResult, Graph};
+use crate::{cluster::reorder, state::AlnState};
 use ahash::{AHashMap, AHashSet};
 use fixedbitset::FixedBitSet;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use petgraph::unionfind::UnionFind;
 use roaring::RoaringBitmap;
-
-pub struct Graph {
-    pub size: usize,
-    pub labels: Vec<usize>,
-    pub sims: AHashMap<usize, AHashMap<usize, f64>>,
-    pub node_pos: Vec<(u32, u32)>,
-}
 
 pub fn triplets_to_sims(
     triplets: Vec<(usize, usize, f64)>,
@@ -26,51 +20,11 @@ pub fn triplets_to_sims(
     }
     sims
 }
-#[derive(Debug)]
-pub struct ClusteringResult {
-    pub clusters: Vec<Vec<(u32, u32)>>,
-}
-
-impl ClusteringResult {
-    pub fn check_validity(&self) {
-        for i in 0..self.clusters.len() {
-            for j in i..self.clusters.len() {
-                if i == j {
-                    continue;
-                }
-                let cond = Self::all_smaller(&self.clusters[i], &self.clusters[j])
-                    || Self::all_smaller(&self.clusters[j], &self.clusters[i]);
-                if !cond {
-                    println!("{:?} {:?}", &self.clusters[i], &self.clusters[j]);
-                    panic!("Clusters are not ordered");
-                }
-            }
-        }
-    }
-
-    fn all_smaller(lhs: &[(u32, u32)], rhs: &[(u32, u32)]) -> bool {
-        // checks if the x-coordinate of lhs is all smaller than the x-coordinate of rhs
-        for (i, x) in lhs {
-            if rhs.iter().any(|(j, y)| *i == *j && *x > *y) {
-                return false;
-            }
-        }
-        true
-    }
-}
 
 pub fn union(lhs: &mut Vec<usize>, rhs: &[usize]) {
     let mut set = BTreeSet::from_iter(lhs.drain(0..));
     set.extend(rhs.iter());
     lhs.extend(set.into_iter());
-}
-
-pub fn reorder(lhs: usize, rhs: usize) -> (usize, usize) {
-    if lhs > rhs {
-        (rhs, lhs)
-    } else {
-        (lhs, rhs)
-    }
 }
 
 fn ds_dfs(outedges: &Vec<Vec<usize>>, visited: &mut FixedBitSet, u: usize, v: usize) -> bool {
@@ -321,6 +275,19 @@ pub fn naive_upgma(graph: &Graph, state: &AlnState) -> ClusteringResult {
                 .collect_vec(),
         );
     }
+
+    // let mut score = 0.0;
+    // for c in &cluster_ord {
+    //     let x = &final_clusters[c];
+    //     if x.len() <= 1 {
+    //         continue;
+    //     }
+    //     let n1 = x[0];
+    //     let n2 = x[1];
+    //     score += graph.sims[&n1][&n2];
+    // }
+    // println!("score: {}", score);
+
     // for v in final_clusters.values() {
 
     // }

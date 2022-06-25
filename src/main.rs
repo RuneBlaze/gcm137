@@ -2,7 +2,9 @@ mod combined;
 mod external;
 // mod gcm;
 mod aln;
+mod cluster;
 mod decompose;
+mod exact_solver;
 mod merge;
 mod naive_upgma;
 mod rt;
@@ -47,7 +49,7 @@ fn random_graph() {
         column_counts: Vec::from_iter(lengths.iter().copied()),
     };
     let size: usize = lengths.iter().sum();
-    let mut g = naive_upgma::Graph {
+    let mut g = cluster::Graph {
         size,
         labels: (0..size).collect_vec(),
         sims: ahash::AHashMap::default(),
@@ -94,7 +96,12 @@ async fn main() -> anyhow::Result<()> {
                 Some(weights)
             };
             info!("Analysis: merging alignments");
-            info!("Merging configuration (# alignments to merge, # glues, weights): {}, {}, {:?}", input.len(), glues.len(), w);
+            info!(
+                "Merging configuration (# alignments to merge, # glues, weights): {}, {}, {:?}",
+                input.len(),
+                glues.len(),
+                w
+            );
             combined::oneshot_merge_alignments(&input, &glues, &w, &output)
                 .expect("Failed to merge alignments");
         }

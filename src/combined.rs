@@ -1,15 +1,17 @@
+use crate::{cluster::ClusteringResult, exact_solver::sw_algorithm};
 use anyhow::Ok;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
-use tracing::{debug, error, info, span, warn, Level};
 use seq_io::fasta::Reader;
+use tracing::{debug, error, info, span, warn, Level};
 
 use std::error::Error;
 use std::path::PathBuf;
 
 use crate::{
     aln::AlnProcessor,
+    exact_solver,
     merge::{
         build_frames, build_graph, merge_alignments_from_frames, state_from_constraints,
         StateFromConstraints,
@@ -29,9 +31,16 @@ pub fn oneshot_merge_alignments(
     debug!("Constructed state from constraints");
     let graph = build_graph(&mut state, glues, weights).unwrap();
     debug!("Built alignment graph.");
-    let res = naive_upgma(&graph, &state);
+    let res = if constraints.len() == 2 {
+        debug!("Running SW algorithm, solving MWT-AM exactly.");
+        sw_algorithm(&graph, &state)
+    } else {
+        debug!("Running UPGMA heuristic for solving MWT-AM.");
+        naive_upgma(&graph, &state)
+    };
     debug!("Clustered/Traced alignment graph.");
     let frames = build_frames(&state, &res);
+    // println!("Built frames. {:?}", frames[0]);
     debug!("Flushing merged alignments...");
     merge_alignments_from_frames(constraints, &frames, outpath).unwrap();
     Ok(())

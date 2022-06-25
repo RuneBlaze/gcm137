@@ -1,7 +1,7 @@
 use ahash::AHashMap;
 use ordered_float::NotNan;
 
-use crate::{aln::AlnProcessor, external::request_alignment};
+use crate::{aln::AlnProcessor, exact_solver, external::request_alignment};
 use futures::executor::block_on;
 use itertools::Itertools;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
@@ -16,10 +16,7 @@ use std::{
 };
 use tokio::{sync::Semaphore, task};
 
-use crate::{
-    naive_upgma::{ClusteringResult, Graph},
-    state::AlnState,
-};
+use crate::{cluster::ClusteringResult, cluster::Graph, state::AlnState};
 
 pub fn state_from_constraints(constraint_alns: &[PathBuf]) -> anyhow::Result<AlnState> {
     let mut p = StateFromConstraints::default();
@@ -161,7 +158,10 @@ pub fn build_graph(
         }
     }
     for (i, subgraph) in subgraphs.iter().enumerate() {
-        let subgraph_weight = weights.as_ref().map(|w| w[i as usize].into_inner()).unwrap_or(1.0);
+        let subgraph_weight = weights
+            .as_ref()
+            .map(|w| w[i as usize].into_inner())
+            .unwrap_or(1.0);
         for (u, map) in subgraph {
             for (v, w) in map {
                 let u = pos2id[u];
@@ -174,6 +174,26 @@ pub fn build_graph(
             }
         }
     }
+
+    let mut og: AHashMap<(u32, u32), AHashMap<(u32, u32), f64>> = AHashMap::default();
+    for (i, subgraph) in subgraphs.iter().enumerate() {
+        let subgraph_weight = weights
+            .as_ref()
+            .map(|w| w[i as usize].into_inner())
+            .unwrap_or(1.0);
+        for (u, map) in subgraph {
+            for (v, w) in map {
+                let u = *u;
+                let v = *v;
+                let entry = og.entry(u).or_insert_with(AHashMap::default);
+                let entry2 = entry.entry(v).or_default();
+                *entry2 += w * subgraph_weight;
+            }
+        }
+    }
+
+    // exact_solver::solve_twocase_mwt(&mut og);
+
     Ok(Graph {
         size: id,
         labels: labels.into_iter().collect_vec(),
@@ -191,20 +211,10 @@ pub fn build_frames(state: &AlnState, res: &ClusteringResult) -> Vec<Vec<u32>> {
     }
     let traces = &res.clusters;
     for tr in traces {
-        let mut c = 0u32;
-        for e in tr.iter().chain(&[(k as u32, 123123 as u32)]) {
-            while c < e.0 && c < k as u32 {
-                // c not present in tr
-                let l = skip_frames[c as usize].len();
-                skip_frames[c as usize][l - 1] += 1;
-                c += 1;
-            }
-            if c >= k as u32 {
-                break;
-            }
-            assert_eq!(c, e.0);
-            // check for singletons
+        for e in tr {
+            let c = e.0;
             if last_frontier[c as usize] < (e.1 as i64 - 1) {
+                // println!("{:?}", *e);
                 // then singletons exist, we need to take care of them
                 let num_singletons = (e.1 as i64 - last_frontier[c as usize] - 1) as usize;
                 for j in 0..k {
@@ -218,14 +228,28 @@ pub fn build_frames(state: &AlnState, res: &ClusteringResult) -> Vec<Vec<u32>> {
                     }
                 }
             }
-            assert!(
-                last_frontier[c as usize] < e.1 as i64,
-                "last_frontier[{}] = {} >= {}",
-                c,
-                last_frontier[c as usize],
-                e.1
-            );
             last_frontier[c as usize] = e.1 as i64;
+        }
+        let mut c = 0u32;
+        for e in tr.iter().chain(&[(k as u32, u32::MAX)]) {
+            while c < e.0 && c < k as u32 {
+                // c not present in tr
+                let l = skip_frames[c as usize].len();
+                skip_frames[c as usize][l - 1] += 1;
+                c += 1;
+            }
+            if c >= k as u32 {
+                break;
+            }
+            assert_eq!(c, e.0);
+
+            // assert!(
+            //     last_frontier[c as usize] < e.1 as i64,
+            //     "last_frontier[{}] = {} >= {}",
+            //     c,
+            //     last_frontier[c as usize],
+            //     e.1
+            // );
 
             skip_frames[c as usize].push(0);
             c += 1;
