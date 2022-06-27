@@ -1,10 +1,9 @@
-mod combined;
-mod external;
-// mod gcm;
 mod aln;
 mod cluster;
+mod combined;
 mod decompose;
 mod exact_solver;
+mod external;
 mod merge;
 mod naive_upgma;
 mod rt;
@@ -13,12 +12,11 @@ mod utils;
 
 use clap::{Parser, Subcommand};
 use cluster::GCMStep;
-use itertools::Itertools;
-use naive_upgma::triplets_to_sims;
+
 use ordered_float::NotNan;
-use rand::Rng;
+
 use std::path::PathBuf;
-use tracing::{debug, error, info, span, warn, Level};
+use tracing::info;
 
 #[derive(Parser, Debug, Hash, PartialEq)]
 #[clap(author, version, about)]
@@ -41,40 +39,38 @@ enum SubCommand {
         #[clap(short, long)]
         output: PathBuf,
     },
+
+    Slice {
+        #[clap(short, long)]
+        input: PathBuf,
+        #[clap(short, long)]
+        tree: PathBuf,
+        #[clap(short, long, value_parser = parse_axb, default_value = "10x200")]
+        glues: (usize, usize),
+        #[clap(short, long)]
+        outdir: PathBuf,
+        #[clap(short = 'c', long)]
+        max_count: Option<usize>,
+        #[clap(short = 's', long)]
+        max_size: Option<usize>,
+    },
 }
 
-fn random_graph() {
-    let lengths = [600; 25];
-    let state = state::AlnState {
-        names: vec![],
-        names2id: ahash::AHashMap::default(),
-        s: vec![],
-        column_counts: Vec::from_iter(lengths.iter().copied()),
-    };
-    let size: usize = lengths.iter().sum();
-    let mut g = cluster::Graph {
-        size,
-        labels: (0..size).collect_vec(),
-        sims: ahash::AHashMap::default(),
-        node_pos: vec![],
-    };
-    for (i, l) in lengths.iter().enumerate() {
-        for c in 0..*l {
-            g.node_pos.push((i as u32, c as u32));
-        }
-    }
-    let mut rng = rand::thread_rng();
-    let mut triplets = vec![];
-    for _ in 1..500000 {
-        let x = rng.gen_range(0..size);
-        let y = rng.gen_range(0..size);
-        let f = rng.gen_range(1..5usize) as f64;
-        triplets.push((x, y, f));
-    }
-    g.sims = triplets_to_sims(triplets);
-    let res = naive_upgma::naive_upgma(&g, &state);
-    res.check_validity();
-    println!("{:?}", res);
+fn parse_axb(s: &str) -> Result<(usize, usize), String> {
+    let mut parts = s.split('x');
+    let a = parts
+        .next()
+        .ok_or("missing first argument before 'x'".to_string())?;
+    let b = parts
+        .next()
+        .ok_or("missing second argument before 'x'".to_string())?;
+    let a_u = a
+        .parse()
+        .or_else(|_| Err("Cannot parse first argument into int"))?;
+    let b_u = b
+        .parse()
+        .or_else(|_| Err("Cannot parse second argument into int"))?;
+    Ok((a_u, b_u))
 }
 
 #[tokio::main]
@@ -108,6 +104,17 @@ async fn main() -> anyhow::Result<()> {
             );
             combined::oneshot_merge_alignments(&input, &glues, tracer, &w, &output)
                 .expect("Failed to merge alignments");
+        }
+        SubCommand::Slice {
+            input,
+            tree,
+            glues,
+            outdir,
+            max_count,
+            max_size,
+        } => {
+            info!("Analysis: slicing unaligned sequences.");
+            combined::oneshot_slice_sequences(&input, &tree, glues, max_count, max_size, &outdir)?;
         }
     }
     info!("Total elapsed time: {:?}", now.elapsed());

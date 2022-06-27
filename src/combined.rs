@@ -1,20 +1,22 @@
-use crate::{
-    cluster::{ClusteringResult, GCMStep},
-    exact_solver::sw_algorithm,
-};
+use crate::{cluster::GCMStep, exact_solver::sw_algorithm};
 use anyhow::Ok;
-use itertools::Itertools;
+use ogcat::ogtree::{self, TreeCollection};
 use ordered_float::NotNan;
-use rayon::iter::{IndexedParallelIterator, ParallelIterator};
-use seq_io::fasta::Reader;
-use tracing::{debug, error, info, span, warn, Level};
-
-use std::error::Error;
-use std::path::PathBuf;
+use rand::prelude::SliceRandom;
+use rayon::iter::IndexedParallelIterator;
+use seq_io::{
+    fasta::{OwnedRecord, Reader, Record},
+    BaseRecord,
+};
+use std::{
+    fs::create_dir_all,
+    io::{BufWriter, Write},
+    path::PathBuf,
+};
+use tracing::{debug, warn};
 
 use crate::{
     aln::AlnProcessor,
-    exact_solver,
     merge::{
         build_frames, build_graph, merge_alignments_from_frames, state_from_constraints,
         StateFromConstraints,
@@ -51,7 +53,10 @@ pub fn oneshot_merge_alignments(
     Ok(())
 }
 
-pub fn oneshot_stitch_alignments(constraints: &[PathBuf], outpath: &PathBuf) -> anyhow::Result<()> {
+pub fn oneshot_stitch_alignments(
+    constraints: &[PathBuf],
+    _outpath: &PathBuf,
+) -> anyhow::Result<()> {
     let mut p = StateFromConstraints::default();
     for aln in constraints {
         // cid : constraint id
@@ -65,5 +70,82 @@ pub fn oneshot_stitch_alignments(constraints: &[PathBuf], outpath: &PathBuf) -> 
         p.next_aln();
     }
     todo!();
+    Ok(())
+}
+
+pub fn oneshot_slice_sequences(
+    input: &PathBuf,
+    tree: &PathBuf,
+    glues: (usize, usize),
+    max_count: Option<usize>,
+    max_size: Option<usize>,
+    outdir: &PathBuf,
+) -> anyhow::Result<()> {
+    let mut rng = rand::thread_rng();
+    let collection = TreeCollection::from_newick(tree).expect("Failed to read tree");
+    let decomp = ogtree::centroid_edge_decomp(&collection.trees[0], &max_count, &max_size);
+    let labels = ogtree::cuts_to_subsets(&collection.trees[0], &decomp);
+    let ts = &collection.taxon_set;
+    let mut reader = Reader::from_path(input)?;
+    let mut subsets: Vec<Vec<OwnedRecord>> = vec![Vec::new(); decomp.len()];
+    while let Some(s) = reader.next() {
+        let r = s?;
+        let head = String::from_utf8_lossy(r.head());
+        let id = ts.retrieve(&head);
+        subsets[labels[id]].push(r.to_owned_record());
+    }
+    create_dir_all(outdir)?;
+    let (glue_num, glue_size) = glues;
+    let mut constraints_path = outdir.clone();
+    constraints_path.push("constraints");
+    create_dir_all(&constraints_path)?;
+    let mut glues_path = outdir.clone();
+    glues_path.push("glues");
+    create_dir_all(&glues_path)?; // oh my god this is so ugly
+    for (i, c) in subsets.iter().enumerate() {
+        let mut cp = constraints_path.clone();
+        cp.push(format!("constraint_{}.unaln.fa", i));
+        let file = std::fs::File::create(cp)?;
+        let mut writer = BufWriter::new(file);
+        for r in c {
+            writer.write_all(b">")?;
+            writer.write_all(r.head())?;
+            writer.write_all(b"\n")?;
+            r.seq.chunks(60).try_for_each(|chunk| {
+                writer.write_all(chunk)?;
+                writer.write_all(b"\n")?;
+                Ok(())
+            })?;
+        }
+    }
+    let k = decomp.len();
+    let mut sample_size = glue_size / k;
+    let max_seqset_size = subsets.iter().map(|it| it.len()).max().unwrap();
+    if sample_size > max_seqset_size {
+        warn!(
+            "Sample size is larger than largest subset size. Setting sample size to {}",
+            max_seqset_size
+        );
+        sample_size = max_seqset_size;
+    }
+    for i in 0..glue_num {
+        let mut gp = glues_path.clone();
+        gp.push(format!("glue_{}.unaln.fa", i));
+        let file = std::fs::File::create(gp)?;
+        let mut writer = BufWriter::new(file);
+        for c in &subsets {
+            c.choose_multiple(&mut rng, sample_size).try_for_each(|r| {
+                writer.write_all(b">")?;
+                writer.write_all(r.head())?;
+                writer.write_all(b"\n")?;
+                r.seq.chunks(60).try_for_each(|chunk| {
+                    writer.write_all(chunk)?;
+                    writer.write_all(b"\n")?;
+                    Ok(())
+                })?;
+                Ok(())
+            })?;
+        }
+    }
     Ok(())
 }

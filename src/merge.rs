@@ -1,8 +1,8 @@
 use ahash::AHashMap;
 use ordered_float::NotNan;
 
-use crate::{aln::AlnProcessor, exact_solver, external::request_alignment};
-use futures::executor::block_on;
+use crate::{aln::AlnProcessor, external::request_alignment};
+
 use itertools::Itertools;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use seq_io::{fasta::Reader, BaseRecord};

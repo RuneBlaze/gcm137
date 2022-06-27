@@ -1,13 +1,10 @@
-use std::collections::VecDeque;
-
 use ahash::AHashMap;
 use fixedbitset::FixedBitSet;
 use ndarray::{Array, ShapeBuilder};
-use tracing::{debug, error, info, span, warn, Level};
 
 use crate::{
-    cluster::{reorder, ClusteringResult, Graph},
-    state::{self, AlnState},
+    cluster::{ClusteringResult, Graph},
+    state::AlnState,
 };
 
 /// a DP algorithm for solving the exact two row MWT-AM problem
@@ -32,7 +29,7 @@ pub fn solve_twocase_mwt(
     let initial_state = FixedBitSet::with_capacity(edges.len());
     let initial_boundary = (0u32, 0u32);
     let mut back = vec![0usize; edges.len()];
-    let res = two_case_mwt(
+    let _res = two_case_mwt(
         &mut mem,
         &edges,
         &mut back,
@@ -92,7 +89,7 @@ pub fn sw_algorithm(graph: &Graph, state: &AlnState) -> ClusteringResult {
             back[[i, j]] = max_pt;
         }
     }
-    let score = s[[n, m]];
+    let _score = s[[n, m]];
     let mut matches: Vec<Vec<(u32, u32)>> = Vec::new();
     let (mut i, mut j) = (n, m);
     while i > 0 && j > 0 {
@@ -111,7 +108,6 @@ pub fn sw_algorithm(graph: &Graph, state: &AlnState) -> ClusteringResult {
         }
     }
     matches.reverse();
-    // println!("{:?}", matches);
     ClusteringResult { clusters: matches }
 }
 
