@@ -60,6 +60,7 @@ pub fn weight_from_graph(graph: &Graph, i: usize, j: usize) -> f64 {
     0.0
 }
 
+/// Smith-Waterman, but modified to solve the MWT-AM problem
 pub fn sw_algorithm(graph: &Graph, state: &AlnState) -> ClusteringResult {
     let n = state.column_counts[0];
     let m = state.column_counts[1];
@@ -115,7 +116,7 @@ fn can_take(boundary: (u32, u32), edge_x: (u32, u32)) -> bool {
     if edge_x.0 >= boundary.0 && edge_x.1 >= boundary.1 {
         return true;
     }
-    return false;
+    false
 }
 // #[tracing::instrument]
 fn two_case_mwt(
@@ -154,5 +155,5 @@ fn two_case_mwt(
     }
     back[*frontier] = best_next;
     mem.insert(taken.clone(), maximum);
-    return maximum;
+    maximum
 }

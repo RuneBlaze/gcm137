@@ -29,7 +29,7 @@ pub fn state_from_constraints(constraint_alns: &[PathBuf]) -> anyhow::Result<Aln
         }
         p.next_aln();
     }
-    return Ok(p.take());
+    Ok(p.take())
 }
 
 pub struct StateFromConstraints {
@@ -273,7 +273,7 @@ pub fn build_frames(state: &AlnState, res: &ClusteringResult) -> Vec<Vec<u32>> {
             }
         }
     }
-    return skip_frames;
+    skip_frames
 }
 
 pub fn merge_alignments_from_frames(

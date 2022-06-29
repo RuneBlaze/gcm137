@@ -12,9 +12,7 @@ mod utils;
 
 use clap::{Parser, Subcommand};
 use cluster::GCMStep;
-
 use ordered_float::NotNan;
-
 use std::path::PathBuf;
 use tracing::info;
 
@@ -27,19 +25,26 @@ struct Args {
 
 #[derive(Subcommand, Debug, PartialEq, Hash)]
 enum SubCommand {
+    /// Run GCM using existing subset and glue alignments
     Merge {
+        /// Subset alignments
         #[clap(short, long, multiple_values = true)]
         input: Vec<PathBuf>,
+        /// Glue alignments
         #[clap(short, long, multiple_values = true)]
         glues: Vec<PathBuf>,
+        /// Tracing strategy
         #[clap(short, long, arg_enum, default_value_t = GCMStep::Auto)]
         tracer: GCMStep,
+        /// Optional weights to the glues, same length as glue alignments
         #[clap(short, long, multiple_values = true)]
         weights: Vec<NotNan<f64>>,
+        /// Output merged alignment path
         #[clap(short, long)]
         output: PathBuf,
     },
 
+    /// Slice unaligned sequences into unaligned subsets and glues
     Slice {
         #[clap(short, long)]
         input: PathBuf,
@@ -65,11 +70,9 @@ fn parse_axb(s: &str) -> Result<(usize, usize), String> {
         .next()
         .ok_or("missing second argument before 'x'".to_string())?;
     let a_u = a
-        .parse()
-        .or_else(|_| Err("Cannot parse first argument into int"))?;
+        .parse().map_err(|_| "Cannot parse first argument into int")?;
     let b_u = b
-        .parse()
-        .or_else(|_| Err("Cannot parse second argument into int"))?;
+        .parse().map_err(|_| "Cannot parse second argument into int")?;
     Ok((a_u, b_u))
 }
 

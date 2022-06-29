@@ -89,7 +89,7 @@ impl AlnProcessor for SequenceSampler {
     }
 
     fn take(&mut self) -> Self::Output {
-        ()
+        
     }
 }
 

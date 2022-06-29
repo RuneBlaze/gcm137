@@ -5,7 +5,7 @@ use ordered_float::NotNan;
 use rand::prelude::SliceRandom;
 use rayon::iter::IndexedParallelIterator;
 use seq_io::{
-    fasta::{OwnedRecord, Reader, Record},
+    fasta::{OwnedRecord, Reader},
     BaseRecord,
 };
 use std::{
@@ -44,10 +44,8 @@ pub fn oneshot_merge_alignments(
         debug!("Running UPGMA heuristic for solving MWT-AM.");
         naive_upgma(&graph, &state)
     };
-    // println!("{:?}", res.clusters);
     debug!("Clustered/Traced alignment graph.");
     let frames = build_frames(&state, &res);
-    // println!("Built frames. {:?}", frames[0]);
     debug!("Flushing merged alignments...");
     merge_alignments_from_frames(constraints, &frames, outpath).unwrap();
     Ok(())
