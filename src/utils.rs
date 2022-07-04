@@ -9,6 +9,7 @@ use seq_io::{fasta::RefRecord, BaseRecord};
 
 use crate::aln::AlnProcessor;
 
+/// A streaming sequence sampler.
 pub struct SequenceSampler {
     pub rng: ThreadRng,
     pub names: Vec<Vec<u8>>,
@@ -88,9 +89,7 @@ impl AlnProcessor for SequenceSampler {
         Ok(())
     }
 
-    fn take(&mut self) -> Self::Output {
-        
-    }
+    fn take(&mut self) -> Self::Output {}
 }
 
 pub fn sample_seqs_in_place(

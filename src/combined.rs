@@ -3,7 +3,6 @@ use anyhow::Ok;
 use ogcat::ogtree::{self, TreeCollection};
 use ordered_float::NotNan;
 use rand::prelude::SliceRandom;
-use rayon::iter::IndexedParallelIterator;
 use seq_io::{
     fasta::{OwnedRecord, Reader},
     BaseRecord,
@@ -38,7 +37,7 @@ pub fn oneshot_merge_alignments(
     let graph = build_graph(&mut state, glues, weights).unwrap();
     debug!("Built alignment graph.");
     let res = if constraints.len() == 2 && tracer_mode != GCMStep::Upgma {
-        debug!("Running SW algorithm, solving MWT-AM exactly.");
+        debug!("Running Smith-Waterman, solving MWT-AM exactly.");
         sw_algorithm(&graph, &state)
     } else {
         debug!("Running UPGMA heuristic for solving MWT-AM.");
@@ -47,7 +46,7 @@ pub fn oneshot_merge_alignments(
     debug!("Clustered/Traced alignment graph.");
     let frames = build_frames(&state, &res);
     debug!("Flushing merged alignments...");
-    merge_alignments_from_frames(constraints, &frames, outpath).unwrap();
+    merge_alignments_from_frames(constraints, &frames, outpath)?;
     Ok(())
 }
 
@@ -67,7 +66,7 @@ pub fn oneshot_stitch_alignments(
         }
         p.next_aln();
     }
-    todo!();
+    todo!(); // honestly I don't know if I should implement this or not
     Ok(())
 }
 

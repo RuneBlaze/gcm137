@@ -2,7 +2,7 @@ use ahash::AHashMap;
 
 pub struct AlnState {
     pub names: Vec<String>,
-    pub names2id: AHashMap<String, usize>,
+    pub names2id: AHashMap<String, usize>, // TODO: there is no need to keep 2 copies of the same string
     pub s: Vec<Vec<(u32, u32)>>,
     pub column_counts: Vec<usize>,
 }

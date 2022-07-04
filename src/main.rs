@@ -1,12 +1,10 @@
 mod aln;
 mod cluster;
 mod combined;
-mod decompose;
 mod exact_solver;
 mod external;
 mod merge;
 mod naive_upgma;
-mod rt;
 mod state;
 mod utils;
 
@@ -70,9 +68,11 @@ fn parse_axb(s: &str) -> Result<(usize, usize), String> {
         .next()
         .ok_or("missing second argument before 'x'".to_string())?;
     let a_u = a
-        .parse().map_err(|_| "Cannot parse first argument into int")?;
+        .parse()
+        .map_err(|_| "Cannot parse first argument into int")?;
     let b_u = b
-        .parse().map_err(|_| "Cannot parse second argument into int")?;
+        .parse()
+        .map_err(|_| "Cannot parse second argument into int")?;
     Ok((a_u, b_u))
 }
 

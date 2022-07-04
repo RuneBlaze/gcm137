@@ -7,7 +7,8 @@ use crate::{
     state::AlnState,
 };
 
-/// a DP algorithm for solving the exact two row MWT-AM problem
+/// a DP algorithm for solving the exact two row MWT-AM problem.
+/// Not used currently because the Smith-Waterman algorithm seems simpler and faster.
 pub fn solve_twocase_mwt(
     graph: &AHashMap<(u32, u32), AHashMap<(u32, u32), f64>>,
 ) -> ClusteringResult {
@@ -50,6 +51,7 @@ pub fn solve_twocase_mwt(
     cr
 }
 
+/// helper to retrive weight from a graph
 pub fn weight_from_graph(graph: &Graph, i: usize, j: usize) -> f64 {
     let h1 = graph.sims.get(&i);
     if let Some(h2) = h1 {
@@ -100,6 +102,7 @@ pub fn sw_algorithm(graph: &Graph, state: &AlnState) -> ClusteringResult {
             j -= 1;
             matches.push(vec![(0, i as u32), (1, j as u32)]);
         } else if pt == 7 {
+            // TODO: this branch is not currently used. To be removed.
             i -= 1;
             j -= 1;
         } else if pt == 1 {
@@ -118,7 +121,7 @@ fn can_take(boundary: (u32, u32), edge_x: (u32, u32)) -> bool {
     }
     false
 }
-// #[tracing::instrument]
+
 fn two_case_mwt(
     mem: &mut AHashMap<FixedBitSet, f64>,
     edges: &Vec<((u32, u32), (u32, u32), f64)>,

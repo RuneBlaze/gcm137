@@ -175,22 +175,22 @@ pub fn build_graph(
         }
     }
 
-    let mut og: AHashMap<(u32, u32), AHashMap<(u32, u32), f64>> = AHashMap::default();
-    for (i, subgraph) in subgraphs.iter().enumerate() {
-        let subgraph_weight = weights
-            .as_ref()
-            .map(|w| w[i as usize].into_inner())
-            .unwrap_or(1.0);
-        for (u, map) in subgraph {
-            for (v, w) in map {
-                let u = *u;
-                let v = *v;
-                let entry = og.entry(u).or_insert_with(AHashMap::default);
-                let entry2 = entry.entry(v).or_default();
-                *entry2 += w * subgraph_weight;
-            }
-        }
-    }
+    // let mut og: AHashMap<(u32, u32), AHashMap<(u32, u32), f64>> = AHashMap::default();
+    // for (i, subgraph) in subgraphs.iter().enumerate() {
+    //     let subgraph_weight = weights
+    //         .as_ref()
+    //         .map(|w| w[i as usize].into_inner())
+    //         .unwrap_or(1.0);
+    //     for (u, map) in subgraph {
+    //         for (v, w) in map {
+    //             let u = *u;
+    //             let v = *v;
+    //             let entry = og.entry(u).or_insert_with(AHashMap::default);
+    //             let entry2 = entry.entry(v).or_default();
+    //             *entry2 += w * subgraph_weight;
+    //         }
+    //     }
+    // }
 
     // exact_solver::solve_twocase_mwt(&mut og);
 
@@ -280,7 +280,7 @@ pub fn merge_alignments_from_frames(
     constraints: &[PathBuf],
     frames: &[Vec<u32>],
     outfile: &PathBuf,
-) -> Result<(), Box<dyn Error>> {
+) -> anyhow::Result<()> {
     let out = File::create(outfile).unwrap();
     let mut writer = BufWriter::new(out);
     for (constraint, frame) in constraints.iter().zip(frames) {
@@ -307,12 +307,14 @@ pub fn merge_alignments_from_frames(
             }
             // println!("buflen: {}, sum of frame: {}, {}/{}, {}", buf.len(), written, char_count, frame.len(), frame[frame.len() - 1]);
             writer.write_all(b">")?;
-            writer.write_all(rec.head()).unwrap();
-            writer.write_all(b"\n").unwrap();
-            buf.chunks(60).for_each(|chunk| {
-                writer.write_all(chunk).unwrap();
-                writer.write_all(b"\n").unwrap();
-            });
+            writer.write_all(rec.head())?;
+            writer.write_all(b"\n")?;
+            buf.chunks(60)
+                .try_for_each::<_, anyhow::Result<()>>(|chunk| {
+                    writer.write_all(chunk)?;
+                    writer.write_all(b"\n")?;
+                    Ok(())
+                })?;
         }
     }
     Ok(())

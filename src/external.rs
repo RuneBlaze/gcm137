@@ -3,10 +3,7 @@ use std::os::unix::prelude::{FromRawFd, IntoRawFd};
 use std::process::Stdio;
 use std::{fs::rename, path::PathBuf, process::Command};
 
-pub fn request_alignment(
-    in_path: &PathBuf,
-    out_path: &PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn request_alignment(in_path: &PathBuf, out_path: &PathBuf) -> anyhow::Result<()> {
     let mut temp_out = out_path.clone();
     temp_out.set_extension("temp");
     let fd = File::create(&temp_out)?.into_raw_fd();
