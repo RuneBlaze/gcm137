@@ -1,6 +1,8 @@
-use std::{path::Path, fs::File, io::{self, BufRead}};
+use std::{path::Path, fs::File, io::{self, BufRead}, collections::BTreeSet, mem::swap};
 use ahash::AHashMap;
 use clap::ArgEnum;
+use itertools::Itertools;
+use tracing::info;
 use crate::state::AlnState;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum, Debug, Hash)]
@@ -75,6 +77,37 @@ impl ClusteringResult {
             }
         }
         score
+    }
+
+    /// re-insert singleton clusters that have weights into the trace
+    pub fn hydrate(&mut self, state : &AlnState, graph : &Graph) {
+        let mut lanes : Vec<BTreeSet<(u32, u32)>> = vec![BTreeSet::new(); state.ncols()];
+        let labels = &graph.labels;
+        for l in labels {
+            let pos = graph.node_pos[*l];
+            lanes[pos.0 as usize].insert(pos);
+        }
+        let mut lanes_order = lanes.iter().map(|it| it.iter().peekable()).collect_vec();
+        let mut trace = vec![];
+        swap(&mut trace, &mut self.clusters);
+        for tr in trace {
+            for e in &tr {
+                // let mut it = &;
+                while let Some(x) = lanes_order[e.0 as usize].next_if(|x| x.1 <= e.1) {
+                    if x.1 < e.1 {
+                        self.clusters.push(vec![*x]);
+                    } else {
+                        // info!("{:?}", x);
+                    }
+                }
+            }
+            self.clusters.push(tr);
+        }
+        for k in 0..state.ncols() {
+            while let Some(x) = lanes_order[k].next() {
+                self.clusters.push(vec![*x]);
+            }
+        }
     }
 
     pub fn from_plaintext<P>(path : P, graph : &Graph) -> anyhow::Result<Self> where P: AsRef<Path> {

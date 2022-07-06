@@ -31,4 +31,8 @@ impl AlnState {
             column_counts: vec![],
         }
     }
+
+    pub fn ncols(&self) -> usize  {
+        self.column_counts.len()
+    }
 }

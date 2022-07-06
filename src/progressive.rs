@@ -22,17 +22,17 @@ fn random_partition(k: usize, bitset: &mut FixedBitSet) {
 pub fn iterative_refinement(state: &AlnState, graph: &Graph, res: &mut ClusteringResult) {
     let k = state.column_counts.len();
     let mut partition = FixedBitSet::with_capacity(k);
-    let mut rest_its = 1000usize;
-    for _ in 0..3 {
+    let mut rest_its = 200usize;
+    for _ in 0..2 {
         for i in 0..k {
             partition.set(i, true);
-            iterative_refinment_step(state, graph, res, &partition);
+            iterative_refinement_step(state, graph, res, &partition);
             partition.set(i, false);
         }
     }
     while rest_its > 0 {
         random_partition(k, &mut partition);
-        iterative_refinment_step(state, graph, res, &partition);
+        iterative_refinement_step(state, graph, res, &partition);
         partition.clear();
         rest_its -= 1;
     }
@@ -46,7 +46,7 @@ fn get_graph_sim(g : &AHashMap<usize, AHashMap<usize, f64>>, u : usize, v : usiz
     g.get(&u).and_then(|m| m.get(&v)).copied()
 }
 
-fn iterative_refinment_step(
+fn iterative_refinement_step(
     state: &AlnState,
     graph: &Graph,
     res: &mut ClusteringResult,
@@ -75,8 +75,6 @@ fn iterative_refinment_step(
             c2.push(c2_buf);
         }
     }
-    let mut old_score = 0.0;
-    let mut upperbound = 0.0;
     for (&u, map) in &graph.sims {
         for (&v, &value) in map {
             let p1 = graph.node_pos[u];
@@ -85,26 +83,26 @@ fn iterative_refinment_step(
                 let (i1, i2) = if partition[p1.0 as usize] {
                     (match pos2cid.get(&p1) {
                         Some(i) => *i,
-                        None => continue,
+                        None => panic!("{} {}", p1.0, p1.1),
                     }, 
                     match pos2cid.get(&p2) {
                         Some(i) => *i,
-                        None => continue,
+                        None => panic!("{} {} {} -> {}, {}", p2.0, p2.1, u, v, graph.labels.contains(&u) && graph.labels.contains(&v)),
                     })
                 } else {
                     (match pos2cid.get(&p2) {
                         Some(i) => *i,
-                        None => continue,
+                        None => panic!("{} {}", p2.0, p2.1),
                     }, 
                     match pos2cid.get(&p1) {
                         Some(i) => *i,
-                        None => continue,
+                        None => panic!("{} {}", p1.0, p1.1),
                     })
                 };
                 let entry = sims.entry(i1).or_insert_with(AHashMap::default);
                 let entry2 = entry.entry(i2).or_default();
                 *entry2 += value;
-                upperbound += value;
+                // upperbound += value;
             }
         }
     }

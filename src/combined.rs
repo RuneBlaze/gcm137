@@ -24,7 +24,7 @@ use crate::{
     utils::SequenceSampler,
 };
 
-#[tracing::instrument]
+// #[tracing::instrument]
 pub fn oneshot_merge_alignments(
     constraints: &[PathBuf],
     glues: &[PathBuf],
@@ -36,7 +36,7 @@ pub fn oneshot_merge_alignments(
     debug!("Constructed state from constraints");
     let graph = build_graph(&mut state, glues, weights).unwrap();
     debug!("Built alignment graph.");
-    let mut res = if constraints.len() == 2 && tracer_mode != GCMStep::Upgma {
+    let mut trace = if constraints.len() == 2 && tracer_mode != GCMStep::Upgma {
         debug!("Running Smith-Waterman, solving MWT-AM exactly.");
         sw_algorithm(&graph, &state)
     } else {
@@ -44,9 +44,15 @@ pub fn oneshot_merge_alignments(
         naive_upgma(&graph, &state)
     };
     debug!("Clustered/Traced alignment graph.");
-    iterative_refinement(&state, &graph, &mut res);
+    info!("Loaded trace of size: {}", trace.clusters.len());
+    trace.hydrate(&state, &graph);
+    info!("Hydrated trace of size: {}", trace.clusters.len());
+    let before_score = trace.mwt_am_score(&state, &graph);
+    iterative_refinement(&state, &graph, &mut trace);
+    let after_score = trace.mwt_am_score(&state, &graph);
+    info!("Optimized trace: {:.2} -> {:.2}, ({:.2}% increase)", before_score, after_score, (after_score - before_score) / before_score * 100.0);
     debug!("Finished iterative refinement.");
-    let frames = build_frames(&state, &res);
+    let frames = build_frames(&state, &trace);
     debug!("Flushing merged alignments...");
     merge_alignments_from_frames(constraints, &frames, outpath)?;
     Ok(())
@@ -82,6 +88,9 @@ pub fn oneshot_optimize_trace(
     debug!("Constructed state from constraints");
     let mut graph = load_graph(&state, graph_path)?;
     let mut trace = ClusteringResult::from_plaintext(trace_path, &graph)?;
+    info!("Loaded trace of size: {}", trace.clusters.len());
+    trace.hydrate(&state, &graph);
+    info!("Hydrated trace of size: {}", trace.clusters.len());
     let before_score = trace.mwt_am_score(&state, &graph);
     iterative_refinement(&state, &graph, &mut trace);
     let after_score = trace.mwt_am_score(&state, &graph);
