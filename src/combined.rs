@@ -1,4 +1,4 @@
-use crate::{cluster::GCMStep, exact_solver::sw_algorithm};
+use crate::{cluster::{GCMStep, ClusteringResult}, exact_solver::sw_algorithm, progressive::iterative_refinement, merge::load_graph};
 use anyhow::Ok;
 use ogcat::ogtree::{self, TreeCollection};
 use ordered_float::NotNan;
@@ -12,7 +12,7 @@ use std::{
     io::{BufWriter, Write},
     path::PathBuf,
 };
-use tracing::{debug, warn};
+use tracing::{debug, warn, info};
 
 use crate::{
     aln::AlnProcessor,
@@ -36,7 +36,7 @@ pub fn oneshot_merge_alignments(
     debug!("Constructed state from constraints");
     let graph = build_graph(&mut state, glues, weights).unwrap();
     debug!("Built alignment graph.");
-    let res = if constraints.len() == 2 && tracer_mode != GCMStep::Upgma {
+    let mut res = if constraints.len() == 2 && tracer_mode != GCMStep::Upgma {
         debug!("Running Smith-Waterman, solving MWT-AM exactly.");
         sw_algorithm(&graph, &state)
     } else {
@@ -44,6 +44,8 @@ pub fn oneshot_merge_alignments(
         naive_upgma(&graph, &state)
     };
     debug!("Clustered/Traced alignment graph.");
+    iterative_refinement(&state, &graph, &mut res);
+    debug!("Finished iterative refinement.");
     let frames = build_frames(&state, &res);
     debug!("Flushing merged alignments...");
     merge_alignments_from_frames(constraints, &frames, outpath)?;
@@ -67,6 +69,26 @@ pub fn oneshot_stitch_alignments(
         p.next_aln();
     }
     todo!(); // honestly I don't know if I should implement this or not
+    Ok(())
+}
+
+pub fn oneshot_optimize_trace(
+    constraints: &[PathBuf],
+    graph_path: &PathBuf,
+    trace_path: &PathBuf,
+    outpath: &PathBuf,
+) -> anyhow::Result<()> {
+    let mut state = state_from_constraints(constraints)?;
+    debug!("Constructed state from constraints");
+    let mut graph = load_graph(&state, graph_path)?;
+    let mut trace = ClusteringResult::from_plaintext(trace_path, &graph)?;
+    let before_score = trace.mwt_am_score(&state, &graph);
+    iterative_refinement(&state, &graph, &mut trace);
+    let after_score = trace.mwt_am_score(&state, &graph);
+    info!("Optimized trace: {:.2} -> {:.2}, ({:.2}% increase)", before_score, after_score, (after_score - before_score) / before_score * 100.0);
+    let frames = build_frames(&state, &trace);
+    debug!("Flushing merged alignments...");
+    merge_alignments_from_frames(constraints, &frames, outpath)?;
     Ok(())
 }
 

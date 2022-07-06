@@ -1,5 +1,7 @@
+use std::{path::Path, fs::File, io::{self, BufRead}};
 use ahash::AHashMap;
 use clap::ArgEnum;
+use crate::state::AlnState;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum, Debug, Hash)]
 pub enum GCMStep {
@@ -45,6 +47,51 @@ impl ClusteringResult {
             }
         }
         true
+    }
+
+    pub fn mwt_am_score(&self, state: &AlnState, graph: &Graph) -> f64 {
+        let mut score = 0.0;
+        let mut cid : AHashMap<(u32, u32), usize> = AHashMap::new();
+        for (i, tr) in self.clusters.iter().enumerate() {
+            for e in tr {
+                cid.insert(*e, i);
+            }
+        }
+        for (&u, map) in &graph.sims {
+            for (&v, &value) in map {
+                let p1 = graph.node_pos[u];
+                let p2 = graph.node_pos[v];
+                if p1 == p2 {
+                    continue;
+                }
+                let c1 = cid.get(&p1);
+                let c2 = cid.get(&p2);
+                match (c1, c2) {
+                    (Some(i1), Some(i2)) if i1 == i2 => {
+                        score += value;
+                    }
+                    (_, _) => continue,
+                }
+            }
+        }
+        score
+    }
+
+    pub fn from_plaintext<P>(path : P, graph : &Graph) -> anyhow::Result<Self> where P: AsRef<Path> {
+        let file = File::open(path)?;
+        let mut clusters : Vec<Vec<(u32, u32)>> = vec![];
+        for l in io::BufReader::new(file).lines() {
+            let line = l?;
+            let mut cluster : Vec<(u32, u32)> = vec![];
+            for tok in line.split(' ') {
+                let node_id : usize = tok.parse()?;
+                cluster.push(graph.node_pos[node_id]);
+            }
+            clusters.push(cluster);
+        }
+        Ok(Self {
+            clusters,
+        })
     }
 }
 

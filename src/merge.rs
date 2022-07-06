@@ -1,5 +1,6 @@
 use ahash::AHashMap;
 use ordered_float::NotNan;
+use petgraph::graph;
 
 use crate::{aln::AlnProcessor, external::request_alignment};
 
@@ -10,8 +11,8 @@ use std::{
     collections::BTreeSet,
     error::Error,
     fs::File,
-    io::{BufWriter, Write},
-    path::PathBuf,
+    io::{BufWriter, Write, self, BufRead},
+    path::{PathBuf, Path},
     sync::Arc,
 };
 use tokio::{sync::Semaphore, task};
@@ -132,6 +133,40 @@ pub fn build_subgraph(state: &AlnState, glue: &PathBuf) -> anyhow::Result<Sparse
         }
     }
     Ok(res)
+}
+
+pub fn load_graph<P>(
+    state : &AlnState,
+    graph_path : P
+) -> anyhow::Result<Graph> where P : AsRef<Path> {
+    let mut labels : BTreeSet<usize> = BTreeSet::new();
+    let mut sims : AHashMap<usize, AHashMap<usize, f64>> = AHashMap::default();
+    let mut node_pos : Vec<(u32, u32)> = vec![];
+    let file = File::open(graph_path)?;
+    for l in io::BufReader::new(file).lines() {
+        let line = l?;
+        let (a, b, c) = line.split(' ').collect_tuple().unwrap();
+        let u : usize = a.parse()?;
+        let v : usize = b.parse()?;
+        let (u, v) = if u < v { (u, v) } else { (v, u) };
+        let w : f64 = c.parse()?;
+        labels.insert(u);
+        labels.insert(v);
+        sims.entry(u).or_default().insert(v, w);
+    }
+    let mut id = 0;
+    for (c, &l) in state.column_counts.iter().enumerate() {
+        for i in 0..l {
+            node_pos.push((c as u32, i as u32));
+            id += 1;
+        }
+    }
+    Ok(Graph {
+        size : id,
+        labels : labels.into_iter().collect_vec(),
+        sims,
+        node_pos,
+    })
 }
 
 pub fn build_graph(
@@ -281,7 +316,7 @@ pub fn merge_alignments_from_frames(
     frames: &[Vec<u32>],
     outfile: &PathBuf,
 ) -> anyhow::Result<()> {
-    let out = File::create(outfile).unwrap();
+    let out = File::create(outfile)?;
     let mut writer = BufWriter::new(out);
     for (constraint, frame) in constraints.iter().zip(frames) {
         let mut reader = Reader::from_path(constraint)?;

@@ -5,6 +5,7 @@ mod exact_solver;
 mod external;
 mod merge;
 mod naive_upgma;
+mod progressive;
 mod state;
 mod utils;
 
@@ -57,6 +58,21 @@ enum SubCommand {
         #[clap(short = 's', long)]
         max_size: Option<usize>,
     },
+
+    DebugImprove{
+        /// Subset alignments
+        #[clap(short, long, multiple_values = true)]
+        input: Vec<PathBuf>,
+        /// Serialized Graph
+        #[clap(short, long)]
+        graph: PathBuf,
+        /// Serialized Trace
+        #[clap(short, long)]
+        trace: PathBuf,
+        /// Output merged alignment path
+        #[clap(short, long)]
+        output: PathBuf,
+    }
 }
 
 fn parse_axb(s: &str) -> Result<(usize, usize), String> {
@@ -118,6 +134,10 @@ async fn main() -> anyhow::Result<()> {
         } => {
             info!("Analysis: slicing unaligned sequences.");
             combined::oneshot_slice_sequences(&input, &tree, glues, max_count, max_size, &outdir)?;
+        },
+        SubCommand::DebugImprove{input, graph, trace, output} => {
+            info!("Analysis: improving alignment.");
+            combined::oneshot_optimize_trace(&input, &graph, &trace, &output)?;
         }
     }
     info!("Total elapsed time: {:?}", now.elapsed());
