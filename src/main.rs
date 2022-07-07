@@ -97,9 +97,9 @@ async fn main() -> anyhow::Result<()> {
     use std::time::Instant;
     let now = Instant::now();
     tracing_subscriber::fmt::init();
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(1)
-        .build_global()?;
+    // rayon::ThreadPoolBuilder::new()
+    //     .num_threads(1)
+    //     .build_global()?;
     let args = Args::parse();
     match args.cmd {
         SubCommand::Merge {

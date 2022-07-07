@@ -9,7 +9,7 @@ description = "experimental re-make of graph clustering merger"
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-rand = { version = "0.8.5", features = ["alloc"] }
+rand = { version = "0.8.5", features = ["alloc", "small_rng"] }
 seq_io = "0.4.0-alpha.0"
 itertools = "0.10.3"
 tokio = { version = "1", features = ["full"] }

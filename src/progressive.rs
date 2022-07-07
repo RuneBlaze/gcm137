@@ -1,19 +1,18 @@
 use ahash::AHashMap;
 use fixedbitset::FixedBitSet;
 use ndarray::{Array, ShapeBuilder};
-use rand::Rng;
+use rand::{Rng, prelude::SmallRng, SeedableRng};
 
 use crate::{
     cluster::{ClusteringResult, Graph},
     state::AlnState,
 };
 
-fn random_partition(k: usize, bitset: &mut FixedBitSet) {
+fn random_partition(rng : &mut SmallRng, k: usize, bitset: &mut FixedBitSet) {
     let lb = 1;
     let ub = k - lb;
-    let mut rng = rand::thread_rng();
     let partition_size = rng.gen_range(lb..ub);
-    let ix = rand::seq::index::sample(&mut rng, k, partition_size);
+    let ix = rand::seq::index::sample(rng, k, partition_size);
     for i in ix {
         bitset.set(i, true);
     }
@@ -21,17 +20,19 @@ fn random_partition(k: usize, bitset: &mut FixedBitSet) {
 
 pub fn iterative_refinement(state: &AlnState, graph: &Graph, res: &mut ClusteringResult) {
     let k = state.column_counts.len();
+    let mut rng = SmallRng::from_entropy();
     let mut partition = FixedBitSet::with_capacity(k);
-    let mut rest_its = 200usize;
+    let mut rest_its = 20000usize;
     for _ in 0..2 {
         for i in 0..k {
             partition.set(i, true);
             iterative_refinement_step(state, graph, res, &partition);
             partition.set(i, false);
+            rest_its -= 1;
         }
     }
     while rest_its > 0 {
-        random_partition(k, &mut partition);
+        random_partition(&mut rng, k, &mut partition);
         iterative_refinement_step(state, graph, res, &partition);
         partition.clear();
         rest_its -= 1;
@@ -55,7 +56,7 @@ fn iterative_refinement_step(
     let mut c1 : Vec<Vec<(u32, u32)>> = vec![];
     let mut c2 : Vec<Vec<(u32, u32)>> = vec![];
     let mut pos2cid : AHashMap<(u32, u32), usize> = AHashMap::default();
-    let mut sims : AHashMap<usize, AHashMap<usize, f64>> = AHashMap::default();
+    
     for (_, tr) in res.clusters.iter().enumerate() {
         let mut c1_buf : Vec<(u32, u32)> = vec![];
         let mut c2_buf : Vec<(u32, u32)> = vec![];
@@ -75,6 +76,9 @@ fn iterative_refinement_step(
             c2.push(c2_buf);
         }
     }
+    let n = c1.len();
+    let m = c2.len();
+    let mut sims = Array::<f64, _>::zeros((n, m).f());
     for (&u, map) in &graph.sims {
         for (&v, &value) in map {
             let p1 = graph.node_pos[u];
@@ -99,16 +103,10 @@ fn iterative_refinement_step(
                         None => panic!("{} {}", p1.0, p1.1),
                     })
                 };
-                let entry = sims.entry(i1).or_insert_with(AHashMap::default);
-                let entry2 = entry.entry(i2).or_default();
-                *entry2 += value;
-                // upperbound += value;
+                sims[[i1, i2]] += value;
             }
         }
     }
-
-    let n = c1.len();
-    let m = c2.len();
 
     // now run Smith-Waterman
     let mut s = Array::<f64, _>::zeros((n + 1, m + 1).f());
@@ -127,7 +125,7 @@ fn iterative_refinement_step(
             }
             let mut max = 0.0;
             let mut max_pt = 0u8;
-            let w = get_graph_sim(&sims, i - 1, j - 1).unwrap_or_default();
+            let w = sims[[i-1,j-1]];
             let values = [s[[i - 1, j - 1]] + w, s[[i - 1, j]], s[[i, j - 1]]];
             for (i, &v) in values.iter().enumerate() {
                 if i == 0 && w <= 0.0 {
@@ -146,7 +144,6 @@ fn iterative_refinement_step(
     let _score = s[[n, m]];
     let mut matches: Vec<Vec<(u32, u32)>> = Vec::new();
     let (mut i, mut j) = (n, m);
-    // let mut total_matches = 0;
     while !(i == 0 && j == 0) {
         let pt = back[[i, j]];
         let mut buf: Vec<(u32, u32)> = vec![];
