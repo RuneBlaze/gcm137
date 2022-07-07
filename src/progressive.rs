@@ -22,7 +22,7 @@ pub fn iterative_refinement(state: &AlnState, graph: &Graph, res: &mut Clusterin
     let k = state.column_counts.len();
     let mut rng = SmallRng::from_entropy();
     let mut partition = FixedBitSet::with_capacity(k);
-    let mut rest_its = 20000usize;
+    let mut rest_its = 1000usize;
     for _ in 0..2 {
         for i in 0..k {
             partition.set(i, true);
@@ -78,7 +78,7 @@ fn iterative_refinement_step(
     }
     let n = c1.len();
     let m = c2.len();
-    let mut sims = Array::<f64, _>::zeros((n, m).f());
+    let mut sims = Array::<u32, _>::zeros((n, m).f());
     for (&u, map) in &graph.sims {
         for (&v, &value) in map {
             let p1 = graph.node_pos[u];
@@ -103,18 +103,18 @@ fn iterative_refinement_step(
                         None => panic!("{} {}", p1.0, p1.1),
                     })
                 };
-                sims[[i1, i2]] += value;
+                sims[[i1, i2]] += value as u32;
             }
         }
     }
 
     // now run Smith-Waterman
-    let mut s = Array::<f64, _>::zeros((n + 1, m + 1).f());
+    let mut s = Array::<u32, _>::zeros((n + 1, m + 1).f());
     let mut back = Array::<u8, _>::zeros((n + 1, m + 1).f());
     for i in 0..(n + 1) {
         for j in 0..(m + 1) {
             if i == 0 || j == 0 {
-                s[[i, j]] = 0.0;
+                s[[i, j]] = 0;
                 if i == 0 {
                     back[[i, j]] = 2;
                 }
@@ -123,12 +123,12 @@ fn iterative_refinement_step(
                 }
                 continue;
             }
-            let mut max = 0.0;
+            let mut max = 0;
             let mut max_pt = 0u8;
             let w = sims[[i-1,j-1]];
             let values = [s[[i - 1, j - 1]] + w, s[[i - 1, j]], s[[i, j - 1]]];
             for (i, &v) in values.iter().enumerate() {
-                if i == 0 && w <= 0.0 {
+                if i == 0 && w <= 0 {
                     max_pt = 1;
                     continue;
                 }
