@@ -44,7 +44,7 @@ pub fn iterative_refinement(state: &AlnState, graph: &Graph, mut res: Clustering
         w.mwt_am = og_score;
     }
     let wg = WaitGroup::new();
-    let each_group = 8usize;
+    let each_group = 6usize;
     for g in 0..2 {
         thread::scope(|scope| {
             for i in 0..each_group {
@@ -106,16 +106,18 @@ pub fn iterative_refinement(state: &AlnState, graph: &Graph, mut res: Clustering
     }
     wg.wait();
 
+    let mut ind = 0;
     {
         let l1 = sol.lock();
         let l2 = sol2.lock();
-        let mut w = if l1.mwt_am > l2.mwt_am { l1 } else { l2 };
+        let (mut w, mut u) = if l1.mwt_am > l2.mwt_am { (l1, 0) } else { (l2, 1) };
         for c in &mut w.clusters {
             c.sort_unstable_by_key(|x| x.0);
         }
+        ind = u;
     }
-    // let lock = *sol;
-    Arc::try_unwrap(sol).unwrap().into_inner()
+    Arc::try_unwrap(if ind == 0 {sol} else {sol2}).unwrap().into_inner()
+    
 }
 
 #[inline]
