@@ -1,14 +1,14 @@
-use std::{sync::Arc};
+use std::sync::Arc;
 
 use ahash::AHashMap;
 use crossbeam::{sync::WaitGroup, thread};
 use fixedbitset::FixedBitSet;
 use itertools::Itertools;
 use ndarray::{Array, ShapeBuilder};
-use parking_lot::{RwLock, Mutex};
+use parking_lot::{Mutex, RwLock};
 use rand::seq::SliceRandom;
 use rand::{prelude::SmallRng, Rng, SeedableRng};
-use tracing::{info, span, Level, debug};
+use tracing::{debug, info, span, Level};
 
 use crate::{
     cluster::{ClusteringResult, Graph},
@@ -25,8 +25,11 @@ fn random_partition(rng: &mut SmallRng, k: usize, bitset: &mut FixedBitSet) {
     }
 }
 
-pub fn iterative_refinement(state: &AlnState, graph: &Graph, mut res: ClusteringResult) -> ClusteringResult {
-    
+pub fn iterative_refinement(
+    state: &AlnState,
+    graph: &Graph,
+    mut res: ClusteringResult,
+) -> ClusteringResult {
     let k = state.column_counts.len();
     // let mut rng = SmallRng::from_entropy();
     let mut partition = FixedBitSet::with_capacity(k);
@@ -40,18 +43,22 @@ pub fn iterative_refinement(state: &AlnState, graph: &Graph, mut res: Clustering
     }
     let mut sol2 = Arc::new(Mutex::new(res));
     {
-        let mut w = sol.lock();
+        let mut w = sol2.lock();
         w.mwt_am = og_score;
     }
     let wg = WaitGroup::new();
-    let each_group = 6usize;
-    for g in 0..2 {
-        thread::scope(|scope| {
+    let each_group = 8usize;
+    // for g in 0..2 {
+    thread::scope(|scope| {
+        for g in 0..2 {
             for i in 0..each_group {
                 let span = span!(Level::INFO, "opt", tid = i, group = g);
                 let wg = wg.clone();
-                let s = if g == 0 { (&sol).clone() } else { (&sol2).clone() };
-                
+                let s = if g == 0 {
+                    (&sol).clone()
+                } else {
+                    (&sol).clone()
+                };
                 scope.spawn(move |_| {
                     let _enter = span.enter();
                     let mut rng = SmallRng::from_entropy();
@@ -83,16 +90,21 @@ pub fn iterative_refinement(state: &AlnState, graph: &Graph, mut res: Clustering
                                 part.clear();
                             }
                         }
-                        let read = s.lock();
+                        let mut read = s.lock();
                         let score = r.mwt_am_score(state, graph) as u32;
-                        let their = {
-                            read.mwt_am
-                        };
+                        let their = { read.mwt_am };
                         if score > their {
-                            let mut w = s.lock();
-                            w.mwt_am = score as u32;
-                            info!(new_score = w.mwt_am, improve = format!("{:.3}%", (score as f64 / og_score as f64 - 1.0) * 100.0) , frustration, "score improved");
-                            w.clusters = r.clusters;
+                            read.mwt_am = score as u32;
+                            info!(
+                                new_score = read.mwt_am,
+                                improve = format!(
+                                    "{:.3}%",
+                                    (score as f64 / og_score as f64 - 1.0) * 100.0
+                                ),
+                                frustration,
+                                "score improved"
+                            );
+                            read.clusters = r.clusters;
                             frustration = 0;
                         } else {
                             frustration += 1;
@@ -102,22 +114,29 @@ pub fn iterative_refinement(state: &AlnState, graph: &Graph, mut res: Clustering
                     drop(wg);
                 });
             }
-        }).unwrap();
-    }
+        }
+    })
+    .unwrap();
+    // }
     wg.wait();
 
     let mut ind = 0;
     {
         let l1 = sol.lock();
         let l2 = sol2.lock();
-        let (mut w, mut u) = if l1.mwt_am > l2.mwt_am { (l1, 0) } else { (l2, 1) };
+        let (mut w, mut u) = if l1.mwt_am > l2.mwt_am {
+            (l1, 0)
+        } else {
+            (l2, 1)
+        };
         for c in &mut w.clusters {
             c.sort_unstable_by_key(|x| x.0);
         }
         ind = u;
     }
-    Arc::try_unwrap(if ind == 0 {sol} else {sol2}).unwrap().into_inner()
-    
+    Arc::try_unwrap(if ind == 0 { sol } else { sol2 })
+        .unwrap()
+        .into_inner()
 }
 
 #[inline]
