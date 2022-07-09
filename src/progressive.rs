@@ -57,7 +57,7 @@ pub fn iterative_refinement(
                 let s = if g == 0 {
                     (&sol).clone()
                 } else {
-                    (&sol).clone()
+                    (&sol2).clone()
                 };
                 scope.spawn(move |_| {
                     let _enter = span.enter();
