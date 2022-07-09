@@ -64,7 +64,7 @@ pub fn iterative_refinement(
                     let mut rng = SmallRng::from_entropy();
                     let mut part = FixedBitSet::with_capacity(k);
                     let mut frustration = -1 as i32;
-                    for epoch in 0..100 {
+                    for epoch in 0..200 {
                         let mut r = {
                             let read = s.lock();
                             read.clone()
