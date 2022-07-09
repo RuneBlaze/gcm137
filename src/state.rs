@@ -32,7 +32,7 @@ impl AlnState {
         }
     }
 
-    pub fn ncols(&self) -> usize  {
+    pub fn ncols(&self) -> usize {
         self.column_counts.len()
     }
 }

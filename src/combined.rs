@@ -1,4 +1,9 @@
-use crate::{cluster::{GCMStep, ClusteringResult}, exact_solver::sw_algorithm, progressive::iterative_refinement, merge::load_graph};
+use crate::{
+    cluster::{ClusteringResult, GCMStep},
+    exact_solver::sw_algorithm,
+    merge::load_graph,
+    progressive::iterative_refinement,
+};
 use anyhow::Ok;
 use ogcat::ogtree::{self, TreeCollection};
 use ordered_float::NotNan;
@@ -12,7 +17,7 @@ use std::{
     io::{BufWriter, Write},
     path::PathBuf,
 };
-use tracing::{debug, warn, info};
+use tracing::{debug, info, warn};
 
 use crate::{
     aln::AlnProcessor,
@@ -50,7 +55,12 @@ pub fn oneshot_merge_alignments(
     let before_score = trace.mwt_am_score(&state, &graph);
     iterative_refinement(&state, &graph, &mut trace);
     let after_score = trace.mwt_am_score(&state, &graph);
-    info!("Optimized trace: {:.2} -> {:.2}, ({:.2}% increase)", before_score, after_score, (after_score - before_score) / before_score * 100.0);
+    info!(
+        "Optimized trace: {:.2} -> {:.2}, ({:.2}% increase)",
+        before_score,
+        after_score,
+        (after_score - before_score) / before_score * 100.0
+    );
     debug!("Finished iterative refinement.");
     let frames = build_frames(&state, &trace);
     debug!("Flushing merged alignments...");
@@ -94,7 +104,12 @@ pub fn oneshot_optimize_trace(
     let before_score = trace.mwt_am_score(&state, &graph);
     iterative_refinement(&state, &graph, &mut trace);
     let after_score = trace.mwt_am_score(&state, &graph);
-    info!("Optimized trace: {:.2} -> {:.2}, ({:.2}% increase)", before_score, after_score, (after_score - before_score) / before_score * 100.0);
+    info!(
+        "Optimized trace: {:.2} -> {:.2}, ({:.2}% increase)",
+        before_score,
+        after_score,
+        (after_score - before_score) / before_score * 100.0
+    );
     let frames = build_frames(&state, &trace);
     debug!("Flushing merged alignments...");
     merge_alignments_from_frames(constraints, &frames, outpath)?;

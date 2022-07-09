@@ -1,14 +1,14 @@
 use ahash::AHashMap;
 use fixedbitset::FixedBitSet;
 use ndarray::{Array, ShapeBuilder};
-use rand::{Rng, prelude::SmallRng, SeedableRng};
+use rand::{prelude::SmallRng, Rng, SeedableRng};
 
 use crate::{
     cluster::{ClusteringResult, Graph},
     state::AlnState,
 };
 
-fn random_partition(rng : &mut SmallRng, k: usize, bitset: &mut FixedBitSet) {
+fn random_partition(rng: &mut SmallRng, k: usize, bitset: &mut FixedBitSet) {
     let lb = 1;
     let ub = k - lb;
     let partition_size = rng.gen_range(lb..ub);
@@ -43,7 +43,7 @@ pub fn iterative_refinement(state: &AlnState, graph: &Graph, res: &mut Clusterin
 }
 
 #[inline]
-fn get_graph_sim(g : &AHashMap<usize, AHashMap<usize, f64>>, u : usize, v : usize) -> Option<f64> {
+fn get_graph_sim(g: &AHashMap<usize, AHashMap<usize, f64>>, u: usize, v: usize) -> Option<f64> {
     g.get(&u).and_then(|m| m.get(&v)).copied()
 }
 
@@ -53,13 +53,13 @@ fn iterative_refinement_step(
     res: &mut ClusteringResult,
     partition: &FixedBitSet,
 ) {
-    let mut c1 : Vec<Vec<(u32, u32)>> = vec![];
-    let mut c2 : Vec<Vec<(u32, u32)>> = vec![];
-    let mut pos2cid : AHashMap<(u32, u32), usize> = AHashMap::default();
-    
+    let mut c1: Vec<Vec<(u32, u32)>> = vec![];
+    let mut c2: Vec<Vec<(u32, u32)>> = vec![];
+    let mut pos2cid: AHashMap<(u32, u32), usize> = AHashMap::default();
+
     for (_, tr) in res.clusters.iter().enumerate() {
-        let mut c1_buf : Vec<(u32, u32)> = vec![];
-        let mut c2_buf : Vec<(u32, u32)> = vec![];
+        let mut c1_buf: Vec<(u32, u32)> = vec![];
+        let mut c2_buf: Vec<(u32, u32)> = vec![];
         for e in tr {
             if partition[e.0 as usize] {
                 c1_buf.push(*e);
@@ -85,23 +85,34 @@ fn iterative_refinement_step(
             let p2 = graph.node_pos[v];
             if partition[p1.0 as usize] != partition[p2.0 as usize] {
                 let (i1, i2) = if partition[p1.0 as usize] {
-                    (match pos2cid.get(&p1) {
-                        Some(i) => *i,
-                        None => panic!("{} {}", p1.0, p1.1),
-                    }, 
-                    match pos2cid.get(&p2) {
-                        Some(i) => *i,
-                        None => panic!("{} {} {} -> {}, {}", p2.0, p2.1, u, v, graph.labels.contains(&u) && graph.labels.contains(&v)),
-                    })
+                    (
+                        match pos2cid.get(&p1) {
+                            Some(i) => *i,
+                            None => panic!("{} {}", p1.0, p1.1),
+                        },
+                        match pos2cid.get(&p2) {
+                            Some(i) => *i,
+                            None => panic!(
+                                "{} {} {} -> {}, {}",
+                                p2.0,
+                                p2.1,
+                                u,
+                                v,
+                                graph.labels.contains(&u) && graph.labels.contains(&v)
+                            ),
+                        },
+                    )
                 } else {
-                    (match pos2cid.get(&p2) {
-                        Some(i) => *i,
-                        None => panic!("{} {}", p2.0, p2.1),
-                    }, 
-                    match pos2cid.get(&p1) {
-                        Some(i) => *i,
-                        None => panic!("{} {}", p1.0, p1.1),
-                    })
+                    (
+                        match pos2cid.get(&p2) {
+                            Some(i) => *i,
+                            None => panic!("{} {}", p2.0, p2.1),
+                        },
+                        match pos2cid.get(&p1) {
+                            Some(i) => *i,
+                            None => panic!("{} {}", p1.0, p1.1),
+                        },
+                    )
                 };
                 sims[[i1, i2]] += value as u32;
             }
@@ -125,7 +136,7 @@ fn iterative_refinement_step(
             }
             let mut max = 0;
             let mut max_pt = 0u8;
-            let w = sims[[i-1,j-1]];
+            let w = sims[[i - 1, j - 1]];
             let values = [s[[i - 1, j - 1]] + w, s[[i - 1, j]], s[[i, j - 1]]];
             for (i, &v) in values.iter().enumerate() {
                 if i == 0 && w <= 0 {

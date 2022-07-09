@@ -1,9 +1,15 @@
-use std::{path::Path, fs::File, io::{self, BufRead}, collections::BTreeSet, mem::swap};
+use crate::state::AlnState;
 use ahash::AHashMap;
 use clap::ArgEnum;
 use itertools::Itertools;
+use std::{
+    collections::BTreeSet,
+    fs::File,
+    io::{self, BufRead},
+    mem::swap,
+    path::Path,
+};
 use tracing::info;
-use crate::state::AlnState;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum, Debug, Hash)]
 pub enum GCMStep {
@@ -22,9 +28,16 @@ pub struct Graph {
 #[derive(Debug)]
 pub struct ClusteringResult {
     pub clusters: Vec<Vec<(u32, u32)>>,
+    pub mwt_am: u32,
 }
 
 impl ClusteringResult {
+    pub fn new(sol: Vec<Vec<(u32, u32)>>) -> Self {
+        ClusteringResult {
+            clusters: sol,
+            mwt_am: 0,
+        }
+    }
     pub fn check_validity(&self) {
         for i in 0..self.clusters.len() {
             for j in i..self.clusters.len() {
@@ -53,7 +66,7 @@ impl ClusteringResult {
 
     pub fn mwt_am_score(&self, state: &AlnState, graph: &Graph) -> f64 {
         let mut score = 0.0;
-        let mut cid : AHashMap<(u32, u32), usize> = AHashMap::new();
+        let mut cid: AHashMap<(u32, u32), usize> = AHashMap::new();
         for (i, tr) in self.clusters.iter().enumerate() {
             for e in tr {
                 cid.insert(*e, i);
@@ -80,8 +93,8 @@ impl ClusteringResult {
     }
 
     /// re-insert singleton clusters that have weights into the trace
-    pub fn hydrate(&mut self, state : &AlnState, graph : &Graph) {
-        let mut lanes : Vec<BTreeSet<(u32, u32)>> = vec![BTreeSet::new(); state.ncols()];
+    pub fn hydrate(&mut self, state: &AlnState, graph: &Graph) {
+        let mut lanes: Vec<BTreeSet<(u32, u32)>> = vec![BTreeSet::new(); state.ncols()];
         let labels = &graph.labels;
         for l in labels {
             let pos = graph.node_pos[*l];
@@ -110,21 +123,22 @@ impl ClusteringResult {
         }
     }
 
-    pub fn from_plaintext<P>(path : P, graph : &Graph) -> anyhow::Result<Self> where P: AsRef<Path> {
+    pub fn from_plaintext<P>(path: P, graph: &Graph) -> anyhow::Result<Self>
+    where
+        P: AsRef<Path>,
+    {
         let file = File::open(path)?;
-        let mut clusters : Vec<Vec<(u32, u32)>> = vec![];
+        let mut clusters: Vec<Vec<(u32, u32)>> = vec![];
         for l in io::BufReader::new(file).lines() {
             let line = l?;
-            let mut cluster : Vec<(u32, u32)> = vec![];
+            let mut cluster: Vec<(u32, u32)> = vec![];
             for tok in line.split(' ') {
-                let node_id : usize = tok.parse()?;
+                let node_id: usize = tok.parse()?;
                 cluster.push(graph.node_pos[node_id]);
             }
             clusters.push(cluster);
         }
-        Ok(Self {
-            clusters,
-        })
+        Ok(Self::new(clusters))
     }
 }
 

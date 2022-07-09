@@ -59,7 +59,7 @@ enum SubCommand {
         max_size: Option<usize>,
     },
 
-    DebugImprove{
+    DebugImprove {
         /// Subset alignments
         #[clap(short, long, multiple_values = true)]
         input: Vec<PathBuf>,
@@ -72,7 +72,7 @@ enum SubCommand {
         /// Output merged alignment path
         #[clap(short, long)]
         output: PathBuf,
-    }
+    },
 }
 
 fn parse_axb(s: &str) -> Result<(usize, usize), String> {
@@ -96,10 +96,9 @@ fn parse_axb(s: &str) -> Result<(usize, usize), String> {
 async fn main() -> anyhow::Result<()> {
     use std::time::Instant;
     let now = Instant::now();
-    tracing_subscriber::fmt::init();
-    // rayon::ThreadPoolBuilder::new()
-    //     .num_threads(1)
-    //     .build_global()?;
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .init();
     let args = Args::parse();
     match args.cmd {
         SubCommand::Merge {
@@ -134,8 +133,13 @@ async fn main() -> anyhow::Result<()> {
         } => {
             info!("Analysis: slicing unaligned sequences.");
             combined::oneshot_slice_sequences(&input, &tree, glues, max_count, max_size, &outdir)?;
-        },
-        SubCommand::DebugImprove{input, graph, trace, output} => {
+        }
+        SubCommand::DebugImprove {
+            input,
+            graph,
+            trace,
+            output,
+        } => {
             info!("Analysis: improving alignment.");
             combined::oneshot_optimize_trace(&input, &graph, &trace, &output)?;
         }

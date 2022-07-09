@@ -46,7 +46,7 @@ pub fn solve_twocase_mwt(
         pt = back[pt + 1];
     }
     // println!("{:?}", back);
-    let cr = ClusteringResult { clusters: trace };
+    let cr = ClusteringResult::new(trace);
     cr.check_validity();
     cr
 }
@@ -101,10 +101,6 @@ pub fn sw_algorithm(graph: &Graph, state: &AlnState) -> ClusteringResult {
             i -= 1;
             j -= 1;
             matches.push(vec![(0, i as u32), (1, j as u32)]);
-        } else if pt == 7 {
-            // TODO: this branch is not currently used. To be removed.
-            i -= 1;
-            j -= 1;
         } else if pt == 1 {
             i -= 1;
         } else if pt == 2 {
@@ -112,7 +108,7 @@ pub fn sw_algorithm(graph: &Graph, state: &AlnState) -> ClusteringResult {
         }
     }
     matches.reverse();
-    ClusteringResult { clusters: matches }
+    ClusteringResult::new(matches)
 }
 
 fn can_take(boundary: (u32, u32), edge_x: (u32, u32)) -> bool {

@@ -291,7 +291,5 @@ pub fn naive_upgma(graph: &Graph, state: &AlnState) -> ClusteringResult {
     // for v in final_clusters.values() {
 
     // }
-    ClusteringResult {
-        clusters: ordered_clusters,
-    }
+    ClusteringResult::new(ordered_clusters)
 }
