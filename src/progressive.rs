@@ -1,7 +1,14 @@
+use std::{sync::Arc};
+
 use ahash::AHashMap;
+use crossbeam::{sync::WaitGroup, thread};
 use fixedbitset::FixedBitSet;
+use itertools::Itertools;
 use ndarray::{Array, ShapeBuilder};
+use parking_lot::{RwLock, Mutex};
+use rand::seq::SliceRandom;
 use rand::{prelude::SmallRng, Rng, SeedableRng};
+use tracing::{info, span, Level, debug};
 
 use crate::{
     cluster::{ClusteringResult, Graph},
@@ -18,28 +25,97 @@ fn random_partition(rng: &mut SmallRng, k: usize, bitset: &mut FixedBitSet) {
     }
 }
 
-pub fn iterative_refinement(state: &AlnState, graph: &Graph, res: &mut ClusteringResult) {
+pub fn iterative_refinement(state: &AlnState, graph: &Graph, mut res: ClusteringResult) -> ClusteringResult {
+    
     let k = state.column_counts.len();
-    let mut rng = SmallRng::from_entropy();
+    // let mut rng = SmallRng::from_entropy();
     let mut partition = FixedBitSet::with_capacity(k);
+    let og_score = res.mwt_am_score(state, graph) as u32;
+    info!(starting_score = og_score, "iterative refinement started");
     let mut rest_its = 1000usize;
-    for _ in 0..2 {
-        for i in 0..k {
-            partition.set(i, true);
-            iterative_refinement_step(state, graph, res, &partition);
-            partition.set(i, false);
-            rest_its -= 1;
+    let mut sol = Arc::new(Mutex::new(res.clone()));
+    {
+        let mut w = sol.lock();
+        w.mwt_am = og_score;
+    }
+    let mut sol2 = Arc::new(Mutex::new(res));
+    {
+        let mut w = sol.lock();
+        w.mwt_am = og_score;
+    }
+    let wg = WaitGroup::new();
+    let each_group = 8usize;
+    for g in 0..2 {
+        thread::scope(|scope| {
+            for i in 0..each_group {
+                let span = span!(Level::INFO, "opt", tid = i, group = g);
+                let wg = wg.clone();
+                let s = if g == 0 { (&sol).clone() } else { (&sol2).clone() };
+                
+                scope.spawn(move |_| {
+                    let _enter = span.enter();
+                    let mut rng = SmallRng::from_entropy();
+                    let mut part = FixedBitSet::with_capacity(k);
+                    let mut frustration = -1 as i32;
+                    for epoch in 0..100 {
+                        let mut r = {
+                            let read = s.lock();
+                            read.clone()
+                        };
+                        if frustration == 3 || frustration == -1 {
+                            let mut slice = (0..k).collect_vec();
+                            let ub = match frustration {
+                                3 => 1,
+                                _ => 2,
+                            };
+                            for _ in 0..ub {
+                                slice.shuffle(&mut rng);
+                                for &i in &slice {
+                                    part.set(i, true);
+                                    iterative_refinement_step(state, graph, &mut r, &part);
+                                    part.set(i, false);
+                                }
+                            }
+                        } else {
+                            for _ in 0..50 {
+                                random_partition(&mut rng, k, &mut part);
+                                iterative_refinement_step(state, graph, &mut r, &part);
+                                part.clear();
+                            }
+                        }
+                        let read = s.lock();
+                        let score = r.mwt_am_score(state, graph) as u32;
+                        let their = {
+                            read.mwt_am
+                        };
+                        if score > their {
+                            let mut w = s.lock();
+                            w.mwt_am = score as u32;
+                            info!(new_score = w.mwt_am, improve = format!("{:.3}%", (score as f64 / og_score as f64 - 1.0) * 100.0) , frustration, "score improved");
+                            w.clusters = r.clusters;
+                            frustration = 0;
+                        } else {
+                            frustration += 1;
+                            debug!("did not find better solution, frustration: {}", frustration);
+                        }
+                    }
+                    drop(wg);
+                });
+            }
+        }).unwrap();
+    }
+    wg.wait();
+
+    {
+        let l1 = sol.lock();
+        let l2 = sol2.lock();
+        let mut w = if l1.mwt_am > l2.mwt_am { l1 } else { l2 };
+        for c in &mut w.clusters {
+            c.sort_unstable_by_key(|x| x.0);
         }
     }
-    while rest_its > 0 {
-        random_partition(&mut rng, k, &mut partition);
-        iterative_refinement_step(state, graph, res, &partition);
-        partition.clear();
-        rest_its -= 1;
-    }
-    for c in &mut res.clusters {
-        c.sort_unstable_by_key(|x| x.0);
-    }
+    // let lock = *sol;
+    Arc::try_unwrap(sol).unwrap().into_inner()
 }
 
 #[inline]
@@ -152,7 +228,10 @@ fn iterative_refinement_step(
             back[[i, j]] = max_pt;
         }
     }
-    let _score = s[[n, m]];
+    let score = s[[n, m]];
+    // if score <= res.mwt_am {
+    //     return None;
+    // }
     let mut matches: Vec<Vec<(u32, u32)>> = Vec::new();
     let (mut i, mut j) = (n, m);
     while !(i == 0 && j == 0) {
@@ -174,4 +253,8 @@ fn iterative_refinement_step(
     }
     matches.reverse();
     res.clusters = matches;
+    // Some(ClusteringResult {
+    //     clusters: matches,
+    //     mwt_am: score,
+    // })
 }

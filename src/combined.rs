@@ -53,7 +53,7 @@ pub fn oneshot_merge_alignments(
     trace.hydrate(&state, &graph);
     info!("Hydrated trace of size: {}", trace.clusters.len());
     let before_score = trace.mwt_am_score(&state, &graph);
-    iterative_refinement(&state, &graph, &mut trace);
+    trace = iterative_refinement(&state, &graph, trace);
     let after_score = trace.mwt_am_score(&state, &graph);
     info!(
         "Optimized trace: {:.2} -> {:.2}, ({:.2}% increase)",
@@ -102,7 +102,7 @@ pub fn oneshot_optimize_trace(
     trace.hydrate(&state, &graph);
     info!("Hydrated trace of size: {}", trace.clusters.len());
     let before_score = trace.mwt_am_score(&state, &graph);
-    iterative_refinement(&state, &graph, &mut trace);
+    trace = iterative_refinement(&state, &graph, trace);
     let after_score = trace.mwt_am_score(&state, &graph);
     info!(
         "Optimized trace: {:.2} -> {:.2}, ({:.2}% increase)",

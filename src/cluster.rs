@@ -25,7 +25,7 @@ pub struct Graph {
     pub node_pos: Vec<(u32, u32)>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ClusteringResult {
     pub clusters: Vec<Vec<(u32, u32)>>,
     pub mwt_am: u32,

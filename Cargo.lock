@@ -348,6 +348,7 @@ dependencies = [
  "ahash",
  "anyhow",
  "clap",
+ "crossbeam",
  "fixedbitset",
  "futures",
  "itertools",
