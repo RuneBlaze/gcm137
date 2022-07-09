@@ -9,7 +9,6 @@ use std::{
     mem::swap,
     path::Path,
 };
-use tracing::info;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum, Debug, Hash)]
 pub enum GCMStep {
@@ -64,7 +63,7 @@ impl ClusteringResult {
         true
     }
 
-    pub fn mwt_am_score(&self, state: &AlnState, graph: &Graph) -> f64 {
+    pub fn mwt_am_score(&self, _state: &AlnState, graph: &Graph) -> f64 {
         let mut score = 0.0;
         let mut cid: AHashMap<(u32, u32), usize> = AHashMap::new();
         for (i, tr) in self.clusters.iter().enumerate() {
@@ -117,7 +116,7 @@ impl ClusteringResult {
             self.clusters.push(tr);
         }
         for k in 0..state.ncols() {
-            while let Some(x) = lanes_order[k].next() {
+            for x in lanes_order[k].by_ref() {
                 self.clusters.push(vec![*x]);
             }
         }

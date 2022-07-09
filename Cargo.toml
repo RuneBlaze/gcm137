@@ -31,6 +31,7 @@ lazy_static = "1.4.0"
 ndarray = "0.15.4"
 ogcat = {git = "https://github.com/RuneBlaze/ogcat"}
 parking_lot = "0.12.1"
+num_cpus = "1.13.1"
 
 # no doing lto now...
 # [profile.release]

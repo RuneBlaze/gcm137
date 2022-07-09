@@ -1,15 +1,11 @@
-use ahash::AHashMap;
-use ordered_float::NotNan;
-use petgraph::graph;
-
 use crate::{aln::AlnProcessor, external::request_alignment};
-
+use ahash::AHashMap;
 use itertools::Itertools;
+use ordered_float::NotNan;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use seq_io::{fasta::Reader, BaseRecord};
 use std::{
     collections::BTreeSet,
-    error::Error,
     fs::File,
     io::{self, BufRead, BufWriter, Write},
     path::{Path, PathBuf},
@@ -67,7 +63,6 @@ impl AlnProcessor for StateFromConstraints {
         let mut column = 0usize;
         self.state.names.push(name.clone());
         self.state.names2id.insert(name, self.sequence_id);
-        // res.id2constraint
         let mut s_slice: Vec<(u32, u32)> = vec![];
         for l in rec.seq_lines() {
             for &c in l {
@@ -108,13 +103,13 @@ pub fn build_subgraph(state: &AlnState, glue: &PathBuf) -> anyhow::Result<Sparse
             first_ele = true;
         }
         let mut non_gap = 0;
+        let id = state.names2id[&name];
         for l in rec.seq_lines() {
             for &c in l {
                 if first_ele {
                     colors.push(AHashMap::default());
                 }
                 if c != b'-' {
-                    let id = state.names2id[&name];
                     let c = s[id][non_gap];
                     let entry = colors[column].entry(c).or_default();
                     *entry += 1;
@@ -340,7 +335,6 @@ pub fn merge_alignments_from_frames(
                     buf.push(b'-');
                 }
             }
-            // println!("buflen: {}, sum of frame: {}, {}/{}, {}", buf.len(), written, char_count, frame.len(), frame[frame.len() - 1]);
             writer.write_all(b">")?;
             writer.write_all(rec.head())?;
             writer.write_all(b"\n")?;

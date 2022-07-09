@@ -6,6 +6,7 @@ mod external;
 mod merge;
 mod naive_upgma;
 mod progressive;
+mod scorer;
 mod state;
 mod utils;
 
@@ -14,6 +15,8 @@ use cluster::GCMStep;
 use ordered_float::NotNan;
 use std::path::PathBuf;
 use tracing::info;
+
+use crate::{combined::autofix_input_constraints, scorer::oneshot_score_alignment};
 
 #[derive(Parser, Debug, Hash, PartialEq)]
 #[clap(author, version, about)]
@@ -72,6 +75,16 @@ enum SubCommand {
         /// Output merged alignment path
         #[clap(short, long)]
         output: PathBuf,
+    },
+
+    DebugScore {
+        #[clap(short, long, multiple_values = true)]
+        input: Vec<PathBuf>,
+        #[clap(short, long)]
+        product: PathBuf,
+        /// Serialized Graph
+        #[clap(short, long)]
+        graph: PathBuf,
     },
 }
 
@@ -135,13 +148,24 @@ async fn main() -> anyhow::Result<()> {
             combined::oneshot_slice_sequences(&input, &tree, glues, max_count, max_size, &outdir)?;
         }
         SubCommand::DebugImprove {
-            input,
+            mut input,
             graph,
             trace,
             output,
         } => {
             info!("Analysis: improving alignment.");
+            autofix_input_constraints(&mut input);
             combined::oneshot_optimize_trace(&input, &graph, &trace, &output)?;
+        }
+        SubCommand::DebugScore {
+            mut input,
+            product,
+            graph,
+        } => {
+            info!("Analysis: scoring alignment.");
+            autofix_input_constraints(&mut input);
+            let score = oneshot_score_alignment(&input, &graph, &product)?;
+            println!("{}", serde_json::to_string_pretty(&score)?);
         }
     }
     info!("Total elapsed time: {:?}", now.elapsed());

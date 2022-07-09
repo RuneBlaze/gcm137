@@ -355,6 +355,7 @@ dependencies = [
  "lazy_static",
  "ndarray",
  "nix",
+ "num_cpus",
  "ogcat",
  "ordered-float",
  "parking_lot",

@@ -13,9 +13,10 @@ use seq_io::{
     BaseRecord,
 };
 use std::{
-    fs::create_dir_all,
+    fs::{create_dir_all, metadata},
     io::{BufWriter, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
+    str::FromStr,
 };
 use tracing::{debug, info, warn};
 
@@ -28,6 +29,37 @@ use crate::{
     naive_upgma::naive_upgma,
     utils::SequenceSampler,
 };
+
+pub fn autofix_input_constraints(constraints: &mut Vec<PathBuf>) {
+    if constraints.len() == 1 {
+        if metadata(constraints[0].as_path()).unwrap().is_dir() {
+            let mut new_constraints = detect_magus_constraints(&constraints[0]);
+            info!(
+                num_constraints = new_constraints.len(),
+                "auto-detected constraints"
+            );
+            constraints.clear();
+            constraints.append(&mut new_constraints);
+        }
+    }
+}
+
+pub fn detect_magus_constraints(basedir: &PathBuf) -> Vec<PathBuf> {
+    let mut constraint_id = 1usize;
+    let mut constraints = vec![];
+    loop {
+        let p = Path::new(basedir)
+            .join("subalignments")
+            .join(format!("subalignment_subset_{}.txt", constraint_id));
+        if p.exists() {
+            constraints.push(p);
+            constraint_id += 1;
+        } else {
+            break;
+        }
+    }
+    constraints
+}
 
 // #[tracing::instrument]
 pub fn oneshot_merge_alignments(
@@ -94,9 +126,9 @@ pub fn oneshot_optimize_trace(
     trace_path: &PathBuf,
     outpath: &PathBuf,
 ) -> anyhow::Result<()> {
-    let mut state = state_from_constraints(constraints)?;
+    let state = state_from_constraints(constraints)?;
     debug!("Constructed state from constraints");
-    let mut graph = load_graph(&state, graph_path)?;
+    let graph = load_graph(&state, graph_path)?;
     let mut trace = ClusteringResult::from_plaintext(trace_path, &graph)?;
     info!("Loaded trace of size: {}", trace.clusters.len());
     trace.hydrate(&state, &graph);

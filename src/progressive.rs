@@ -5,7 +5,7 @@ use crossbeam::{sync::WaitGroup, thread};
 use fixedbitset::FixedBitSet;
 use itertools::Itertools;
 use ndarray::{Array, ShapeBuilder};
-use parking_lot::{Mutex, RwLock};
+use parking_lot::Mutex;
 use rand::seq::SliceRandom;
 use rand::{prelude::SmallRng, Rng, SeedableRng};
 use tracing::{debug, info, span, Level};
@@ -28,29 +28,33 @@ fn random_partition(rng: &mut SmallRng, k: usize, bitset: &mut FixedBitSet) {
 pub fn iterative_refinement(
     state: &AlnState,
     graph: &Graph,
-    mut res: ClusteringResult,
+    res: ClusteringResult,
 ) -> ClusteringResult {
+    let is_osx = cfg!(target_os = "macos");
     let k = state.column_counts.len();
-    // let mut rng = SmallRng::from_entropy();
-    let mut partition = FixedBitSet::with_capacity(k);
+    let _partition = FixedBitSet::with_capacity(k);
     let og_score = res.mwt_am_score(state, graph) as u32;
     info!(starting_score = og_score, "iterative refinement started");
-    let mut rest_its = 1000usize;
-    let mut sol = Arc::new(Mutex::new(res.clone()));
+    let _rest_its = 1000usize;
+    let sol = Arc::new(Mutex::new(res.clone()));
     {
         let mut w = sol.lock();
         w.mwt_am = og_score;
     }
-    let mut sol2 = Arc::new(Mutex::new(res));
+    let sol2 = Arc::new(Mutex::new(res));
     {
         let mut w = sol2.lock();
         w.mwt_am = og_score;
     }
     let wg = WaitGroup::new();
-    let each_group = 8usize;
-    // for g in 0..2 {
+    let each_group = if is_osx {
+        num_cpus::get_physical() / 2 - 1
+    } else {
+        num_cpus::get_physical() / 2
+    };
+    let ngroups = if is_osx { 1 } else { 2 };
     thread::scope(|scope| {
-        for g in 0..2 {
+        for g in 0..ngroups {
             for i in 0..each_group {
                 let span = span!(Level::INFO, "opt", tid = i, group = g);
                 let wg = wg.clone();
@@ -63,8 +67,8 @@ pub fn iterative_refinement(
                     let _enter = span.enter();
                     let mut rng = SmallRng::from_entropy();
                     let mut part = FixedBitSet::with_capacity(k);
-                    let mut frustration = -1 as i32;
-                    for epoch in 0..200 {
+                    let mut frustration = -1_i32;
+                    for _epoch in 0..200 {
                         let mut r = {
                             let read = s.lock();
                             read.clone()
@@ -124,7 +128,7 @@ pub fn iterative_refinement(
     {
         let l1 = sol.lock();
         let l2 = sol2.lock();
-        let (mut w, mut u) = if l1.mwt_am > l2.mwt_am {
+        let (mut w, u) = if l1.mwt_am > l2.mwt_am {
             (l1, 0)
         } else {
             (l2, 1)
@@ -145,7 +149,7 @@ fn get_graph_sim(g: &AHashMap<usize, AHashMap<usize, f64>>, u: usize, v: usize) 
 }
 
 fn iterative_refinement_step(
-    state: &AlnState,
+    _state: &AlnState,
     graph: &Graph,
     res: &mut ClusteringResult,
     partition: &FixedBitSet,
@@ -249,7 +253,7 @@ fn iterative_refinement_step(
             back[[i, j]] = max_pt;
         }
     }
-    let score = s[[n, m]];
+    let _score = s[[n, m]];
     // if score <= res.mwt_am {
     //     return None;
     // }
@@ -274,8 +278,4 @@ fn iterative_refinement_step(
     }
     matches.reverse();
     res.clusters = matches;
-    // Some(ClusteringResult {
-    //     clusters: matches,
-    //     mwt_am: score,
-    // })
 }
