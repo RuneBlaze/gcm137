@@ -81,19 +81,19 @@ pub fn oneshot_merge_alignments(
         naive_upgma(&graph, &state)
     };
     debug!("Clustered/Traced alignment graph.");
-    info!("Loaded trace of size: {}", trace.clusters.len());
-    trace.hydrate(&state, &graph);
-    info!("Hydrated trace of size: {}", trace.clusters.len());
-    let before_score = trace.mwt_am_score(&state, &graph);
-    trace = iterative_refinement(&state, &graph, trace);
-    let after_score = trace.mwt_am_score(&state, &graph);
-    info!(
-        "Optimized trace: {:.2} -> {:.2}, ({:.2}% increase)",
-        before_score,
-        after_score,
-        (after_score - before_score) / before_score * 100.0
-    );
-    debug!("Finished iterative refinement.");
+    // info!("Loaded trace of size: {}", trace.clusters.len());
+    // trace.hydrate(&state, &graph);
+    // info!("Hydrated trace of size: {}", trace.clusters.len());
+    // let before_score = trace.mwt_am_score(&state, &graph);
+    // trace = iterative_refinement(&state, &graph, trace);
+    // let after_score = trace.mwt_am_score(&state, &graph);
+    // info!(
+    //     "Optimized trace: {:.2} -> {:.2}, ({:.2}% increase)",
+    //     before_score,
+    //     after_score,
+    //     (after_score - before_score) / before_score * 100.0
+    // );
+    // debug!("Finished iterative refinement.");
     let frames = build_frames(&state, &trace);
     debug!("Flushing merged alignments...");
     merge_alignments_from_frames(constraints, &frames, outpath)?;
