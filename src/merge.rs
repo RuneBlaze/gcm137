@@ -58,6 +58,26 @@ impl Default for StateFromConstraints {
     }
 }
 
+pub struct GraphConfig {
+    literal_weights : bool,
+}
+
+impl Default for GraphConfig {
+    fn default() -> Self {
+        Self {
+            literal_weights: false,
+        }
+    }
+}
+
+impl GraphConfig {
+    pub fn new(literal_weights: bool) -> Self {
+        Self {
+            literal_weights,
+        }
+    }
+}
+
 impl AlnProcessor for StateFromConstraints {
     type Output = AlnState;
 
@@ -93,7 +113,7 @@ impl AlnProcessor for StateFromConstraints {
 
 type SparseGraph = AHashMap<(u32, u32), AHashMap<(u32, u32), f64>>;
 
-pub fn build_subgraph(state: &AlnState, glue: &PathBuf) -> anyhow::Result<SparseGraph> {
+pub fn build_subgraph(state: &AlnState, glue: &PathBuf, config : &GraphConfig) -> anyhow::Result<SparseGraph> {
     let s = &state.s;
     let mut res = AHashMap::default();
     let mut colors: Vec<AHashMap<(u32, u32), usize>> = vec![];
@@ -128,7 +148,11 @@ pub fn build_subgraph(state: &AlnState, glue: &PathBuf) -> anyhow::Result<Sparse
             let (oc1, oc2) = if *c1 > *c2 { (c2, c1) } else { (c1, c2) };
             let entry = res.entry(*oc1).or_insert_with(AHashMap::default);
             let entry2 = entry.entry(*oc2).or_default();
-            *entry2 += (c[c1] * c[c2]) as f64;
+            if config.literal_weights {
+                *entry2 += 1 as f64;
+            } else {
+                *entry2 += (c[c1] * c[c2]) as f64;
+            }
         }
     }
     Ok(res)
@@ -138,10 +162,11 @@ pub fn build_graph(
     state: &AlnState,
     glues: &[PathBuf],
     weights: &Option<Vec<NotNan<f64>>>,
+    config: &GraphConfig,
 ) -> anyhow::Result<Graph> {
     let subgraphs_: anyhow::Result<Vec<SparseGraph>> = glues
         .par_iter()
-        .map(|glue| build_subgraph(state, glue))
+        .map(|glue| build_subgraph(state, glue, config))
         .collect();
     let subgraphs = subgraphs_?;
     // now we need to merge the subgraphs

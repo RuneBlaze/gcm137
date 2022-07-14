@@ -14,6 +14,8 @@ use ordered_float::NotNan;
 use std::path::PathBuf;
 use tracing::info;
 
+use crate::merge::GraphConfig;
+
 #[derive(Parser, Debug, Hash, PartialEq)]
 #[clap(author, version, about)]
 struct Args {
@@ -37,6 +39,8 @@ enum SubCommand {
         /// Optional weights to the glues, same length as glue alignments
         #[clap(short, long, multiple_values = true)]
         weights: Vec<NotNan<f64>>,
+        #[clap(long)]
+        literal_weights: bool,
         /// Output merged alignment path
         #[clap(short, long)]
         output: PathBuf,
@@ -91,6 +95,7 @@ async fn main() -> anyhow::Result<()> {
             glues,
             tracer,
             weights,
+            literal_weights,
             output,
         } => {
             let w = if weights.is_empty() {
@@ -105,7 +110,7 @@ async fn main() -> anyhow::Result<()> {
                 glues.len(),
                 w
             );
-            combined::oneshot_merge_alignments(&input, &glues, tracer, &w, &output)
+            combined::oneshot_merge_alignments(&input, &glues, tracer, &w, &(GraphConfig::new(true)),&output)
                 .expect("Failed to merge alignments");
         }
         SubCommand::Slice {

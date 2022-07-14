@@ -1,4 +1,4 @@
-use crate::{cluster::GCMStep, exact_solver::sw_algorithm};
+use crate::{cluster::GCMStep, exact_solver::sw_algorithm, merge::GraphConfig};
 use anyhow::Ok;
 use ogcat::ogtree::{self, TreeCollection};
 use ordered_float::NotNan;
@@ -24,17 +24,18 @@ use crate::{
     utils::SequenceSampler,
 };
 
-#[tracing::instrument]
+// #[tracing::instrument]
 pub fn oneshot_merge_alignments(
     constraints: &[PathBuf],
     glues: &[PathBuf],
     tracer_mode: GCMStep,
     weights: &Option<Vec<NotNan<f64>>>,
+    config: &GraphConfig,
     outpath: &PathBuf,
 ) -> anyhow::Result<()> {
     let mut state = state_from_constraints(constraints)?;
     debug!("Constructed state from constraints");
-    let graph = build_graph(&mut state, glues, weights).unwrap();
+    let graph = build_graph(&mut state, glues, weights, config).unwrap();
     debug!("Built alignment graph.");
     let res = if constraints.len() == 2 && tracer_mode != GCMStep::Upgma {
         debug!("Running Smith-Waterman, solving MWT-AM exactly.");
